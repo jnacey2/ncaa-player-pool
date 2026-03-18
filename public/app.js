@@ -449,11 +449,12 @@ function findPlayersInGame(game) {
   return results.sort((a, b) => (b.pts ?? -1) - (a.pts ?? -1));
 }
 
-// Track expansion state
-const expandedGames = new Set();   // currently expanded game IDs
-const seenLiveGames = new Set();   // live games we've already auto-opened
+// Track which non-live game cards are manually expanded by the user
+const expandedGames = new Set();
 
-function toggleGameExpand(gameId) {
+function toggleGameExpand(gameId, isLive) {
+  // Live games are always expanded — clicking a live game does nothing
+  if (isLive) return;
   if (expandedGames.has(gameId)) {
     expandedGames.delete(gameId);
   } else {
@@ -470,14 +471,8 @@ function renderGames() {
     return;
   }
 
-  // Auto-open live games the first time they appear; don't re-open if user closed them
+  // Live games are always expanded — no toggle needed
   const liveGames = state.games.filter(g => g.status === 'live');
-  liveGames.forEach(g => {
-    if (!seenLiveGames.has(g.espn_game_id)) {
-      expandedGames.add(g.espn_game_id);
-      seenLiveGames.add(g.espn_game_id);
-    }
-  });
   const otherGames = state.games.filter(g => g.status !== 'live');
 
   // Group non-live by local date (derived from tip_time in browser's timezone)
@@ -518,7 +513,8 @@ function gameCard(g) {
   const roundNum = g.round_num != null ? g.round_num : 1;
   const roundLabel = ROUND_FULL[roundNum] != null ? ROUND_FULL[roundNum] : `Round ${roundNum}`;
   const isLive = g.status === 'live';
-  const isExpanded = expandedGames.has(g.espn_game_id);
+  // Live games always show expanded; other games follow user toggle state
+  const isExpanded = isLive || expandedGames.has(g.espn_game_id);
 
   let statusStr = '';
   if (isLive) {
@@ -560,7 +556,7 @@ function gameCard(g) {
 
   return `
     <div class="game-card ${g.status}${isExpanded ? ' expanded' : ''}"
-         onclick="toggleGameExpand('${g.espn_game_id}')" style="cursor:pointer">
+         onclick="toggleGameExpand('${g.espn_game_id}', ${isLive})" style="cursor:${isLive ? 'default' : 'pointer'}">
       <div class="game-card-main">
         ${roundLabel ? `<div class="game-round-label">${roundLabel}</div>` : ''}
         <div class="game-matchup">
@@ -575,7 +571,7 @@ function gameCard(g) {
         </div>
         <div class="game-status-bar ${isLive ? 'live' : ''}">
           ${statusStr}
-          <span class="game-expand-hint">${isExpanded ? '▲ hide' : '▼ pool players'}</span>
+          ${!isLive ? `<span class="game-expand-hint">${isExpanded ? '▲ hide' : '▼ pool players'}</span>` : ''}
         </div>
       </div>
       ${dropdownHTML}
