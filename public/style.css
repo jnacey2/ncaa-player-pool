@@ -270,6 +270,52 @@ html, body {
   white-space: pre-wrap;
 }
 
+/* Claude's Picks (top 3 / bottom 3) */
+#commentary-picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+}
+
+.picks-group { display: flex; flex-direction: column; gap: 6px; }
+
+.picks-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.picks-label.top { color: var(--gold); }
+.picks-label.bottom { color: var(--gray); }
+
+.pick-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pick-medal {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.pick-content { flex: 1; }
+.pick-owner { font-weight: 700; color: var(--white); }
+.pick-reason { color: var(--gray); font-size: 11px; }
+
+@media (max-width: 640px) {
+  #commentary-picks { grid-template-columns: 1fr; }
+}
+
 /* Per-team blurb on cards */
 .team-blurb {
   font-size: 12px;

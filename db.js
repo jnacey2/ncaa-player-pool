@@ -86,7 +86,9 @@ async function initSchema() {
       id SERIAL PRIMARY KEY,
       generated_at TIMESTAMPTZ DEFAULT NOW(),
       narrative TEXT,
-      team_blurbs JSONB
+      team_blurbs JSONB,
+      top_3 JSONB,
+      bottom_3 JSONB
     );
   `);
 
@@ -96,6 +98,10 @@ async function initSchema() {
   `);
   await pool.query(`
     ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
+  `);
+  await pool.query(`
+    ALTER TABLE commentary ADD COLUMN IF NOT EXISTS top_3 JSONB;
+    ALTER TABLE commentary ADD COLUMN IF NOT EXISTS bottom_3 JSONB;
   `);
   // Widen round_num check to include 0 (Play-In / First Four games)
   await pool.query(`

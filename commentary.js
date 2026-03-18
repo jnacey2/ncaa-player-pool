@@ -77,11 +77,15 @@ function buildPrompt(standingsSummary) {
 
 ${standingsSummary}
 
-Please write tournament commentary with two parts:
+Please write tournament commentary with four parts:
 
 1. A "narrative" — 2-3 punchy paragraphs covering: who's leading and why, who's in the best position going forward, any notable collapses or hot streaks, which eliminations hurt the most, and overall tournament drama. Be specific about player names and owners. Be witty but not mean-spirited.
 
 2. A "team_blurbs" object — a short 1-2 sentence witty analysis for each of the 13 owners. Be honest: praise the leaders, commiserate with the unlucky, tease anyone who drafted a team that got bounced early. Use the display names provided.
+
+3. A "top_3" array — your picks for the 3 owners most likely to WIN the pool. For each, give the owner's display name and a 1-sentence reason based on their remaining players, alive count, and ceiling. Be bold with your picks.
+
+4. A "bottom_3" array — your picks for the 3 owners least likely to finish in the top half. For each, give the owner's display name and a 1-sentence reason. Be honest but not cruel.
 
 Return ONLY valid JSON in this exact format, with no markdown code fences or extra text:
 {
@@ -89,7 +93,17 @@ Return ONLY valid JSON in this exact format, with no markdown code fences or ext
   "team_blurbs": {
     "DisplayName1": "blurb text",
     "DisplayName2": "blurb text"
-  }
+  },
+  "top_3": [
+    { "owner": "DisplayName", "reason": "one sentence why they will win" },
+    { "owner": "DisplayName", "reason": "one sentence why they will win" },
+    { "owner": "DisplayName", "reason": "one sentence why they will win" }
+  ],
+  "bottom_3": [
+    { "owner": "DisplayName", "reason": "one sentence why they are in trouble" },
+    { "owner": "DisplayName", "reason": "one sentence why they are in trouble" },
+    { "owner": "DisplayName", "reason": "one sentence why they are in trouble" }
+  ]
 }`;
 }
 
@@ -108,7 +122,7 @@ async function generateCommentary() {
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: 'claude-haiku-4-5',
-      max_tokens: 2000,
+      max_tokens: 2500,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -123,8 +137,13 @@ async function generateCommentary() {
     }
 
     await pool.query(
-      `INSERT INTO commentary (narrative, team_blurbs) VALUES ($1, $2)`,
-      [parsed.narrative, JSON.stringify(parsed.team_blurbs)]
+      `INSERT INTO commentary (narrative, team_blurbs, top_3, bottom_3) VALUES ($1, $2, $3, $4)`,
+      [
+        parsed.narrative,
+        JSON.stringify(parsed.team_blurbs),
+        JSON.stringify(parsed.top_3 || []),
+        JSON.stringify(parsed.bottom_3 || []),
+      ]
     );
 
     console.log('[commentary] Commentary saved successfully');

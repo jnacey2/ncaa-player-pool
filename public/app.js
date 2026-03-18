@@ -166,10 +166,12 @@ function renderCommentary() {
   const { commentary } = state;
   const narrativeEl = document.getElementById('commentary-narrative');
   const timestampEl = document.getElementById('commentary-timestamp');
+  const picksEl = document.getElementById('commentary-picks');
 
   if (!commentary?.narrative) {
     narrativeEl.innerHTML = '<div class="loading-msg">Commentary generates every 2 hours on game days. Click Regenerate to generate now.</div>';
     timestampEl.textContent = '';
+    picksEl.classList.add('hidden');
     return;
   }
 
@@ -178,6 +180,46 @@ function renderCommentary() {
   if (commentary.generated_at) {
     const d = new Date(commentary.generated_at);
     timestampEl.textContent = `Updated ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  // Render top 3 / bottom 3 picks
+  const top3 = commentary.top_3 || [];
+  const bottom3 = commentary.bottom_3 || [];
+
+  if (top3.length || bottom3.length) {
+    const topMedals = ['🥇', '🥈', '🥉'];
+    const bottomMedals = ['💀', '😬', '😅'];
+
+    const topHTML = top3.map((pick, i) => `
+      <div class="pick-row">
+        <span class="pick-medal">${topMedals[i] || (i + 1)}</span>
+        <div class="pick-content">
+          <div class="pick-owner">${esc(pick.owner)}</div>
+          <div class="pick-reason">${esc(pick.reason)}</div>
+        </div>
+      </div>`).join('');
+
+    const bottomHTML = bottom3.map((pick, i) => `
+      <div class="pick-row">
+        <span class="pick-medal">${bottomMedals[i] || (i + 1)}</span>
+        <div class="pick-content">
+          <div class="pick-owner">${esc(pick.owner)}</div>
+          <div class="pick-reason">${esc(pick.reason)}</div>
+        </div>
+      </div>`).join('');
+
+    picksEl.innerHTML = `
+      <div class="picks-group">
+        <div class="picks-label top">Claude's Top 3 to Win</div>
+        ${topHTML || '<div class="pick-reason">No picks yet</div>'}
+      </div>
+      <div class="picks-group">
+        <div class="picks-label bottom">Most Likely to Finish Last</div>
+        ${bottomHTML || '<div class="pick-reason">No picks yet</div>'}
+      </div>`;
+    picksEl.classList.remove('hidden');
+  } else {
+    picksEl.classList.add('hidden');
   }
 }
 

@@ -172,7 +172,7 @@ app.post('/api/alerts/seen', async (req, res) => {
 app.get('/api/commentary', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT narrative, team_blurbs, generated_at
+      `SELECT narrative, team_blurbs, top_3, bottom_3, generated_at
        FROM commentary
        ORDER BY generated_at DESC
        LIMIT 1`
