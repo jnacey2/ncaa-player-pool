@@ -449,8 +449,9 @@ function findPlayersInGame(game) {
   return results.sort((a, b) => (b.pts ?? -1) - (a.pts ?? -1));
 }
 
-// Track which live game cards are expanded
-const expandedGames = new Set();
+// Track expansion state
+const expandedGames = new Set();   // currently expanded game IDs
+const seenLiveGames = new Set();   // live games we've already auto-opened
 
 function toggleGameExpand(gameId) {
   if (expandedGames.has(gameId)) {
@@ -469,8 +470,14 @@ function renderGames() {
     return;
   }
 
-  // Split live vs non-live
+  // Auto-open live games the first time they appear; don't re-open if user closed them
   const liveGames = state.games.filter(g => g.status === 'live');
+  liveGames.forEach(g => {
+    if (!seenLiveGames.has(g.espn_game_id)) {
+      expandedGames.add(g.espn_game_id);
+      seenLiveGames.add(g.espn_game_id);
+    }
+  });
   const otherGames = state.games.filter(g => g.status !== 'live');
 
   // Group non-live by local date (derived from tip_time in browser's timezone)
@@ -527,21 +534,22 @@ function gameCard(g) {
   const homeWin = g.status === 'final' && g.home_score > g.away_score;
   const awayWin = g.status === 'final' && g.away_score > g.home_score;
 
-  // Build pool players dropdown for live games
+  // Build pool players dropdown (all games)
   let dropdownHTML = '';
-  if (isLive && isExpanded) {
+  if (isExpanded) {
     const poolPlayers = findPlayersInGame(g);
     if (poolPlayers.length) {
       const rows = poolPlayers.map(p => `
         <div class="game-pool-row">
           <span class="game-pool-name">${esc(p.name)}</span>
+          <span class="game-pool-college">${esc(p.ncaa_team)}</span>
           <span class="game-pool-owner">${esc(p.owner)}</span>
           <span class="game-pool-pts">${p.pts !== null ? p.pts : '—'}</span>
         </div>`).join('');
       dropdownHTML = `
         <div class="game-pool-dropdown">
           <div class="game-pool-header">
-            <span>Player</span><span>Team</span><span>Pts</span>
+            <span>Player</span><span>School</span><span>Team</span><span>Pts</span>
           </div>
           ${rows}
         </div>`;
@@ -550,12 +558,9 @@ function gameCard(g) {
     }
   }
 
-  const clickAttr = isLive
-    ? `onclick="toggleGameExpand('${g.espn_game_id}')" style="cursor:pointer"`
-    : '';
-
   return `
-    <div class="game-card ${g.status}${isExpanded ? ' expanded' : ''}" ${clickAttr}>
+    <div class="game-card ${g.status}${isExpanded ? ' expanded' : ''}"
+         onclick="toggleGameExpand('${g.espn_game_id}')" style="cursor:pointer">
       <div class="game-card-main">
         ${roundLabel ? `<div class="game-round-label">${roundLabel}</div>` : ''}
         <div class="game-matchup">
@@ -570,7 +575,7 @@ function gameCard(g) {
         </div>
         <div class="game-status-bar ${isLive ? 'live' : ''}">
           ${statusStr}
-          ${isLive ? `<span class="game-expand-hint">${isExpanded ? '▲ hide' : '▼ pool players'}</span>` : ''}
+          <span class="game-expand-hint">${isExpanded ? '▲ hide' : '▼ pool players'}</span>
         </div>
       </div>
       ${dropdownHTML}

@@ -466,7 +466,8 @@ html, body {
   flex-shrink: 0;
 }
 
-.game-card.live { cursor: pointer; }
+.game-card { cursor: pointer; }
+.game-card:hover { border-color: var(--gray-dark); }
 .game-card.live:hover { border-color: #33c56b; }
 .game-card.expanded { border-color: var(--green); }
 
@@ -487,7 +488,7 @@ html, body {
 
 .game-pool-header {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 6px;
   padding: 0 2px 4px;
   font-size: 9px;
@@ -501,7 +502,7 @@ html, body {
 
 .game-pool-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 6px;
   padding: 4px 2px;
   font-size: 12px;
@@ -518,11 +519,20 @@ html, body {
   text-overflow: ellipsis;
 }
 
+.game-pool-college {
+  font-size: 11px;
+  color: var(--gray);
+  white-space: nowrap;
+  min-width: 32px;
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
 .game-pool-owner {
   font-size: 11px;
   color: var(--gold);
   white-space: nowrap;
-  min-width: 50px;
+  min-width: 44px;
   text-align: right;
 }
 
