@@ -24,9 +24,9 @@ app.get('/api/standings', async (req, res) => {
 
     const { rows: players } = await pool.query(
       `SELECT p.id, p.owner, p.name, p.ncaa_team, p.position,
-              p.is_eliminated, p.is_playing_now, p.total_pts
+              p.draft_pick, p.is_eliminated, p.is_playing_now, p.total_pts
        FROM players p
-       ORDER BY p.owner, p.total_pts DESC`
+       ORDER BY p.owner, p.draft_pick ASC NULLS LAST`
     );
 
     const { rows: roundScores } = await pool.query(
@@ -135,14 +135,10 @@ async function start() {
   await initSchema();
   console.log('Database schema initialized');
 
-  // Seed if empty
-  const { rows } = await pool.query('SELECT COUNT(*) FROM fantasy_teams');
-  if (parseInt(rows[0].count, 10) === 0) {
-    console.log('Seeding database from CSV...');
-    await seed();
-  } else {
-    console.log(`Database already has ${rows[0].count} fantasy teams`);
-  }
+  // Always run seed — it upserts by fantrax_id so it's safe to re-run.
+  // This ensures draft_pick and any future CSV fields stay in sync.
+  console.log('Syncing teams and draft order from CSV...');
+  await seed();
 
   // Start ESPN scraper
   startScheduler();

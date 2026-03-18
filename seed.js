@@ -50,27 +50,30 @@ async function seed() {
       );
     }
 
-    // Insert players
+    // Insert players (new rows) and always update draft_pick on existing rows
     for (const row of rows) {
       const owner = row['Fantasy Team'];
       const name = row['Player'];
       const ncaaTeam = row['Team'];
       const position = row['Pos'];
       const fantraxId = row['Player ID'];
+      const draftPick = parseInt(row['Ov Pick'], 10) || null;
 
       if (!owner || !name) continue;
 
+      // Try to insert; if the player already exists (matched by fantrax_id),
+      // update draft_pick so it's always in sync with the CSV
       const result = await client.query(
-        `INSERT INTO players (owner, fantrax_id, name, ncaa_team, position)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT DO NOTHING
+        `INSERT INTO players (owner, fantrax_id, name, ncaa_team, position, draft_pick)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (fantrax_id) DO UPDATE SET draft_pick = EXCLUDED.draft_pick
          RETURNING id`,
-        [owner, fantraxId, name, ncaaTeam, position]
+        [owner, fantraxId, name, ncaaTeam, position, draftPick]
       );
 
       if (result.rows.length > 0) {
         const playerId = result.rows[0].id;
-        // Pre-create round score rows (null = not yet played)
+        // Pre-create round score rows if they don't exist yet
         for (let r = 1; r <= 6; r++) {
           await client.query(
             `INSERT INTO player_round_scores (player_id, round_num, pts, blacked_out)
