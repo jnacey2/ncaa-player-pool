@@ -3,6 +3,23 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('./db');
 
+// Map Fantrax usernames → friendly display names
+const DISPLAY_NAMES = {
+  'AJA2026':    'Alpert',
+  'benkunk':    'Kunkel',
+  'Bradfrey':   'Frey',
+  'DamatoN':    "D'Amato",
+  'DAvart':     'Avart',
+  'Dgross21':   'Gross',
+  'Dignazio':   'Dignazio',
+  'Haron':      'Haron',
+  'jmiano':     'Miano',
+  'Jnacey2':    'Nacey',
+  'Mcriqui':    'Criqui',
+  'michaelfer': 'Ferry',
+  'sniels100':  'Nielson',
+};
+
 function parseCSV(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.trim().split('\n');
@@ -83,6 +100,14 @@ async function seed() {
           );
         }
       }
+    }
+
+    // Apply display names
+    for (const [username, displayName] of Object.entries(DISPLAY_NAMES)) {
+      await client.query(
+        `UPDATE fantasy_teams SET display_name = $1 WHERE owner = $2`,
+        [displayName, username]
+      );
     }
 
     await client.query('COMMIT');

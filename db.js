@@ -77,6 +77,9 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS draft_pick INTEGER;
   `);
+  await pool.query(`
+    ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
+  `);
   // Add unique constraint on fantrax_id if not already present
   await pool.query(`
     DO $$

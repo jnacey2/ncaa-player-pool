@@ -17,9 +17,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/standings', async (req, res) => {
   try {
     const { rows: teams } = await pool.query(
-      `SELECT owner, total_pts, players_remaining
+      `SELECT owner, COALESCE(display_name, owner) AS display_name, total_pts, players_remaining
        FROM fantasy_teams
-       ORDER BY total_pts DESC, owner ASC`
+       ORDER BY total_pts DESC, display_name ASC`
     );
 
     const { rows: players } = await pool.query(

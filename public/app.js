@@ -69,11 +69,12 @@ function renderLeaderboard() {
   container.innerHTML = state.standings.map((team, idx) => {
     const rank = idx + 1;
     const rankClass = rank <= 3 ? `rank-${rank}` : '';
+    const name = esc(team.display_name || team.owner);
     return `
-      <div class="lb-card" onclick="scrollToCard('${esc(team.owner)}')" title="Jump to ${esc(team.owner)}'s card">
+      <div class="lb-card" onclick="scrollToCard('${esc(team.owner)}')" title="Jump to ${name}'s card">
         <div class="lb-rank ${rankClass}">#${rank}</div>
         <div class="lb-info">
-          <div class="lb-owner">${esc(team.owner)}</div>
+          <div class="lb-owner">${name}</div>
           <div class="lb-stats">
             <span class="lb-pts">${team.total_pts} pts</span>
             &nbsp;·&nbsp;
@@ -133,12 +134,13 @@ function buildTeamCard(team, rank) {
     return `<td class="col-round ${hasAny ? '' : 'no-pts'}">${hasAny ? t : '—'}</td>`;
   }).join('');
 
+  const displayName = esc(team.display_name || team.owner);
   return `
     <div class="team-card" id="card-${esc(team.owner)}">
       <div class="team-card-header">
         <div class="team-card-owner">
           <div class="rank-badge ${rankClass}">${rank}</div>
-          <span class="team-owner-name">${esc(team.owner)}</span>
+          <span class="team-owner-name">${displayName}</span>
         </div>
         <div class="team-card-totals">
           <span class="card-total-pts">${total}</span>
