@@ -51,16 +51,48 @@ function normalizeTeamAbbrev(abbrev) {
   return (map[abbrev] || abbrev).toLowerCase();
 }
 
-// Fetch all tournament games from ESPN scoreboard
-async function fetchTournamentGames() {
+// All known 2026 NCAA tournament dates (First Four through Championship)
+const TOURNAMENT_DATES = [
+  '20260318', '20260319', // First Four
+  '20260320', '20260321', // First Round
+  '20260322', '20260323', // Second Round
+  '20260327', '20260328', // Sweet 16
+  '20260329', '20260330', // Elite Eight
+  '20260405',             // Final Four
+  '20260407',             // Championship
+];
+
+// Fetch tournament games for a single date
+async function fetchGamesForDate(dateStr) {
   try {
-    const url = `${ESPN_BASE}/scoreboard?groups=${TOURNAMENT_GROUP}&limit=100`;
+    const url = `${ESPN_BASE}/scoreboard?groups=${TOURNAMENT_GROUP}&dates=${dateStr}&limit=20`;
     const { data } = await axios.get(url, { timeout: 10000 });
     return data.events || [];
   } catch (err) {
-    console.error('Error fetching scoreboard:', err.message);
+    console.error(`Error fetching games for ${dateStr}:`, err.message);
     return [];
   }
+}
+
+// Fetch all tournament games across every known tournament date
+async function fetchTournamentGames() {
+  const allEvents = [];
+  const seen = new Set();
+
+  for (const dateStr of TOURNAMENT_DATES) {
+    const events = await fetchGamesForDate(dateStr);
+    for (const e of events) {
+      if (!seen.has(e.id)) {
+        seen.add(e.id);
+        allEvents.push(e);
+      }
+    }
+    // Small delay to be polite to ESPN
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  console.log(`[scraper] Fetched ${allEvents.length} total tournament events`);
+  return allEvents;
 }
 
 // Fetch box score for a single game
