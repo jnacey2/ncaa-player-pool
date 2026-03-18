@@ -103,6 +103,31 @@ async function initSchema() {
     ALTER TABLE commentary ADD COLUMN IF NOT EXISTS top_3 JSONB;
     ALTER TABLE commentary ADD COLUMN IF NOT EXISTS bottom_3 JSONB;
   `);
+  // Fix play-in scores that were incorrectly stored as round 6 (Championship)
+  // due to ESPN's "NCAA Championship" title text matching before "First Four".
+  // Move any round-6 scores recorded on First Four game dates (Mar 18-19) to round 0.
+  await pool.query(`
+    UPDATE player_round_scores prs
+    SET round_num = 0
+    WHERE prs.round_num = 6
+      AND prs.pts IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM players p WHERE p.id = prs.player_id
+      )
+      AND (
+        SELECT MIN(g.game_date) FROM games g WHERE g.round_num = 0
+      ) IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM player_round_scores existing
+        WHERE existing.player_id = prs.player_id AND existing.round_num = 0 AND existing.pts IS NOT NULL
+      );
+  `);
+  // Also reset the misidentified games table round_num for First Four games
+  await pool.query(`
+    UPDATE games SET round_num = 0
+    WHERE round_num = 6
+      AND game_date IN ('2026-03-18', '2026-03-19');
+  `);
   // Widen round_num check to include 0 (Play-In / First Four games)
   await pool.query(`
     DO $$

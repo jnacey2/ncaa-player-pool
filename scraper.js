@@ -14,20 +14,23 @@ function toEasternDateStr(date) {
   return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 }
 
-// Map ESPN round label → round_num 1-6
+// Map ESPN round label → round_num 0-6
+// IMPORTANT: 'First Four' and 'Opening Round' must come BEFORE 'Championship'
+// because ESPN often includes "Championship" in the overall tournament title
+// (e.g. "NCAA Championship - First Four"), causing a false match on round 6.
 const ROUND_LABEL_MAP = {
+  'First Four': 0,
+  'Opening Round': 0,
   'First Round': 1,
+  'Round of 64': 1,
   'Second Round': 2,
+  'Round of 32': 2,
   'Sweet 16': 3,
+  'Sweet Sixteen': 3,
   'Elite Eight': 4,
+  'Elite 8': 4,
   'Final Four': 5,
   'Championship': 6,
-  // alternate ESPN labels
-  'First Four': 0,
-  'Round of 64': 1,
-  'Round of 32': 2,
-  'Sweet Sixteen': 3,
-  'Elite 8': 4,
 };
 
 function normalizeTeamAbbrev(abbrev) {
@@ -584,12 +587,31 @@ async function scrape() {
   }
 }
 
+const INTERVAL_LIVE_MS    = 30_000;   // 30 seconds when games are live
+const INTERVAL_DEFAULT_MS = 300_000;  // 5 minutes otherwise
+
+async function hasLiveGames() {
+  try {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM games WHERE status = 'live' LIMIT 1`
+    );
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function schedulerLoop() {
+  await scrape();
+  const live = await hasLiveGames();
+  const delay = live ? INTERVAL_LIVE_MS : INTERVAL_DEFAULT_MS;
+  console.log(`[scraper] Next scrape in ${delay / 1000}s (${live ? 'LIVE games active' : 'no live games'})`);
+  setTimeout(schedulerLoop, delay);
+}
+
 function startScheduler() {
-  // Run every 5 minutes
-  cron.schedule('*/5 * * * *', scrape);
-  console.log('[scraper] Scheduler started — scraping every 5 minutes');
-  // Run immediately on startup
-  scrape();
+  console.log('[scraper] Scheduler started — 30s when live, 5min otherwise');
+  schedulerLoop();
 }
 
 module.exports = { scrape, startScheduler };
