@@ -7,8 +7,11 @@ const REFRESH_MS = 30_000;
 let state = {
   standings: [],
   games: [],
+  alerts: [],
+  commentary: null,
   lastUpdated: null,
   hasLive: false,
+  seenAlertIds: new Set(JSON.parse(localStorage.getItem('seenAlertIds') || '[]')),
 };
 
 /* ─── Fetch helpers ───────────────────────────────────────────────────────── */
@@ -20,13 +23,17 @@ async function fetchJSON(url) {
 
 async function loadAll() {
   try {
-    const [standings, games, lastUpdated] = await Promise.all([
+    const [standings, games, alerts, commentary, lastUpdated] = await Promise.all([
       fetchJSON('/api/standings'),
       fetchJSON('/api/games'),
+      fetchJSON('/api/alerts?limit=30'),
+      fetchJSON('/api/commentary'),
       fetchJSON('/api/last-updated'),
     ]);
     state.standings = standings;
     state.games = games;
+    state.alerts = alerts;
+    state.commentary = commentary;
     state.lastUpdated = lastUpdated;
     state.hasLive = games.some(g => g.status === 'live');
     render();
@@ -38,7 +45,9 @@ async function loadAll() {
 /* ─── Render orchestrator ─────────────────────────────────────────────────── */
 function render() {
   renderHeader();
+  renderAlerts();
   renderLeaderboard();
+  renderCommentary();
   renderCards();
   renderGames();
 }
@@ -61,6 +70,144 @@ function renderHeader() {
   }
 }
 
+/* ─── Alerts ──────────────────────────────────────────────────────────────── */
+const ALERT_ICONS = { elimination: '💀', milestone: '🔥', rank_change: '↑' };
+let alertDismissTimer = null;
+
+function renderAlerts() {
+  const alerts = state.alerts;
+  const banner = document.getElementById('alert-banner');
+  const layout = document.getElementById('main-layout');
+
+  // Find newest unseen alert
+  const unseen = alerts.filter(a => !state.seenAlertIds.has(a.id));
+  if (!unseen.length) {
+    banner.classList.add('hidden');
+    layout.classList.remove('alert-visible');
+    return;
+  }
+
+  const newest = unseen[0];
+  const icon = ALERT_ICONS[newest.type] || '•';
+  const moreCount = unseen.length - 1;
+
+  banner.className = `type-${newest.type}`;
+  document.getElementById('alert-icon').textContent = icon;
+  document.getElementById('alert-message').textContent = newest.message;
+
+  const moreEl = document.getElementById('alert-more');
+  if (moreCount > 0) {
+    moreEl.textContent = `+${moreCount} more`;
+    moreEl.classList.remove('hidden');
+  } else {
+    moreEl.classList.add('hidden');
+  }
+
+  layout.classList.add('alert-visible');
+
+  // Auto-dismiss after 8 seconds
+  clearTimeout(alertDismissTimer);
+  alertDismissTimer = setTimeout(() => dismissAlert(newest.id), 8000);
+
+  // Populate history drawer
+  renderAlertDrawer(alerts);
+}
+
+function dismissAlert(id) {
+  state.seenAlertIds.add(id);
+  localStorage.setItem('seenAlertIds', JSON.stringify([...state.seenAlertIds]));
+  fetch('/api/alerts/seen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: [id] }),
+  }).catch(() => {});
+  renderAlerts();
+}
+
+function renderAlertDrawer(alerts) {
+  const list = document.getElementById('alert-drawer-list');
+  if (!alerts.length) {
+    list.innerHTML = '<div class="loading-msg" style="padding:12px">No alerts yet</div>';
+    return;
+  }
+  list.innerHTML = alerts.map(a => {
+    const icon = ALERT_ICONS[a.type] || '•';
+    const time = new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="alert-history-item type-${a.type}">
+        <span class="alert-history-icon">${icon}</span>
+        <div class="alert-history-text">
+          ${esc(a.message)}
+          <div class="alert-history-time">${time}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('alert-dismiss').addEventListener('click', () => {
+  const banner = document.getElementById('alert-banner');
+  const msgEl = document.getElementById('alert-message');
+  // Find the alert with this message and dismiss it
+  const match = state.alerts.find(a => a.message === msgEl.textContent);
+  if (match) dismissAlert(match.id);
+  else { banner.classList.add('hidden'); }
+});
+
+document.getElementById('alert-more').addEventListener('click', () => {
+  document.getElementById('alert-drawer').classList.toggle('hidden');
+});
+
+document.getElementById('alert-drawer-close').addEventListener('click', () => {
+  document.getElementById('alert-drawer').classList.add('hidden');
+});
+
+/* ─── Commentary ──────────────────────────────────────────────────────────── */
+function renderCommentary() {
+  const { commentary } = state;
+  const narrativeEl = document.getElementById('commentary-narrative');
+  const timestampEl = document.getElementById('commentary-timestamp');
+
+  if (!commentary?.narrative) {
+    narrativeEl.innerHTML = '<div class="loading-msg">Commentary generates every 2 hours on game days. Click Regenerate to generate now.</div>';
+    timestampEl.textContent = '';
+    return;
+  }
+
+  narrativeEl.textContent = commentary.narrative;
+
+  if (commentary.generated_at) {
+    const d = new Date(commentary.generated_at);
+    timestampEl.textContent = `Updated ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+}
+
+document.getElementById('commentary-regen-btn').addEventListener('click', async function () {
+  this.disabled = true;
+  this.textContent = '↺ Generating...';
+  try {
+    await fetch('/api/commentary/regenerate', { method: 'POST' });
+    // Poll every 3s for up to 30s waiting for the new commentary
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const commentary = await fetchJSON('/api/commentary');
+      const prevTime = state.commentary?.generated_at;
+      if (commentary.generated_at !== prevTime || attempts > 10) {
+        state.commentary = commentary;
+        renderCommentary();
+        // Refresh blurbs on cards
+        renderCards();
+        clearInterval(poll);
+        this.disabled = false;
+        this.textContent = '↺ Regenerate';
+      }
+    }, 3000);
+  } catch {
+    this.disabled = false;
+    this.textContent = '↺ Regenerate';
+  }
+});
+
 /* ─── Leaderboard Strip ───────────────────────────────────────────────────── */
 function renderLeaderboard() {
   const container = document.getElementById('leaderboard-strip');
@@ -70,6 +217,7 @@ function renderLeaderboard() {
     const rank = idx + 1;
     const rankClass = rank <= 3 ? `rank-${rank}` : '';
     const name = esc(team.display_name || team.owner);
+    const ceiling = team.max_possible_pts ?? team.total_pts;
     return `
       <div class="lb-card" onclick="scrollToCard('${esc(team.owner)}')" title="Jump to ${name}'s card">
         <div class="lb-rank ${rankClass}">#${rank}</div>
@@ -77,6 +225,8 @@ function renderLeaderboard() {
           <div class="lb-owner">${name}</div>
           <div class="lb-stats">
             <span class="lb-pts">${team.total_pts} pts</span>
+            &nbsp;·&nbsp;
+            <span class="ceiling-badge">▲${ceiling}</span>
             &nbsp;·&nbsp;
             <span>${team.players_remaining}/10 alive</span>
           </div>
@@ -135,6 +285,9 @@ function buildTeamCard(team, rank) {
   }).join('');
 
   const displayName = esc(team.display_name || team.owner);
+  const ceiling = team.max_possible_pts ?? total;
+  const blurb = state.commentary?.team_blurbs?.[team.display_name || team.owner] || '';
+
   return `
     <div class="team-card" id="card-${esc(team.owner)}">
       <div class="team-card-header">
@@ -144,9 +297,11 @@ function buildTeamCard(team, rank) {
         </div>
         <div class="team-card-totals">
           <span class="card-total-pts">${total}</span>
+          <span class="ceiling-badge" title="Max possible score if all alive players win out">▲${ceiling}</span>
           <span class="card-alive"><span class="alive-count">${alive}</span>/10 alive</span>
         </div>
       </div>
+      ${blurb ? `<div class="team-blurb">${esc(blurb)}</div>` : ''}
       <div class="player-table-wrap">
         <table class="player-table">
           <thead>

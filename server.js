@@ -4,6 +4,7 @@ const path = require('path');
 const { pool, initSchema } = require('./db');
 const { seed } = require('./seed');
 const { startScheduler } = require('./scraper');
+const { generateCommentary, scheduleCommentary } = require('./commentary');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -65,7 +66,21 @@ app.get('/api/standings', async (req, res) => {
       }
     }
 
-    res.json(Object.values(teamMap));
+    // Compute ceiling (max possible score) for each team
+    const DEFAULT_PPG = 10; // fallback when a player has no games yet
+    const result = Object.values(teamMap).map(team => {
+      let ceiling = team.total_pts;
+      for (const player of team.players) {
+        if (player.is_eliminated) continue;
+        const gamesPlayed = player.rounds.filter(r => !r.blacked_out && r.pts !== null).length;
+        const avgPpg = gamesPlayed > 0 ? player.total_pts / gamesPlayed : DEFAULT_PPG;
+        const roundsLeft = player.rounds.filter(r => !r.blacked_out && r.pts === null).length;
+        ceiling += avgPpg * roundsLeft;
+      }
+      return { ...team, max_possible_pts: Math.round(ceiling) };
+    });
+
+    res.json(result);
   } catch (err) {
     console.error('/api/standings error:', err);
     res.status(500).json({ error: err.message });
@@ -123,6 +138,61 @@ app.get('/api/last-updated', async (req, res) => {
   }
 });
 
+// GET /api/alerts — recent alerts (newest first)
+app.get('/api/alerts', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '30', 10), 100);
+    const { rows } = await pool.query(
+      `SELECT id, created_at, type, message, owner, player_name, seen
+       FROM alerts
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/alerts/seen — mark alerts as seen
+app.post('/api/alerts/seen', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (Array.isArray(ids) && ids.length) {
+      await pool.query(`UPDATE alerts SET seen = TRUE WHERE id = ANY($1)`, [ids]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/commentary — most recent commentary
+app.get('/api/commentary', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT narrative, team_blurbs, generated_at
+       FROM commentary
+       ORDER BY generated_at DESC
+       LIMIT 1`
+    );
+    res.json(rows[0] || { narrative: null, team_blurbs: null, generated_at: null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/commentary/regenerate — manually trigger a new generation
+app.post('/api/commentary/regenerate', async (req, res) => {
+  try {
+    res.json({ ok: true, message: 'Regenerating commentary in background...' });
+    generateCommentary(); // fire and forget
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Catch-all: serve index.html for client-side routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -142,6 +212,9 @@ async function start() {
 
   // Start ESPN scraper
   startScheduler();
+
+  // Start Claude commentary scheduler
+  scheduleCommentary();
 
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);

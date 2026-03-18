@@ -11,6 +11,8 @@ services:
           property: connectionString
       - key: PORT
         value: 3000
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
 databases:
   - name: ncaa-pool-db

@@ -420,10 +420,123 @@ async function recomputeTotals() {
   `);
 }
 
+// ─── Alert helpers ────────────────────────────────────────────────────────────
+
+// Round label for alert messages
+const ROUND_NAMES = ['Play-In', 'R1', 'R2', 'Sweet 16', 'Elite Eight', 'Final Four', 'Championship'];
+
+// Snapshot player elimination status + team ranks before a scrape
+async function snapshotBeforeScrape() {
+  const { rows: players } = await pool.query(
+    `SELECT id, name, owner, ncaa_team, is_eliminated, total_pts FROM players`
+  );
+  const { rows: teams } = await pool.query(
+    `SELECT owner, total_pts FROM fantasy_teams ORDER BY total_pts DESC`
+  );
+  const rankMap = {};
+  teams.forEach((t, i) => { rankMap[t.owner] = i + 1; });
+
+  // Also snapshot current round scores to detect new milestones
+  const { rows: scores } = await pool.query(
+    `SELECT player_id, round_num, pts FROM player_round_scores WHERE pts IS NOT NULL`
+  );
+  const scoreMap = {};
+  scores.forEach(s => {
+    const key = `${s.player_id}-${s.round_num}`;
+    scoreMap[key] = s.pts;
+  });
+
+  return { players, rankMap, scoreMap };
+}
+
+// Compare before/after state and insert alerts for changes
+async function detectAndInsertAlerts(before, displayNames) {
+  const { players: beforePlayers, rankMap: beforeRanks, scoreMap: beforeScores } = before;
+
+  // Current state
+  const { rows: afterPlayers } = await pool.query(
+    `SELECT p.id, p.name, p.owner, p.ncaa_team, p.is_eliminated, p.total_pts,
+            COALESCE(ft.display_name, p.owner) AS display_name
+     FROM players p
+     JOIN fantasy_teams ft ON ft.owner = p.owner`
+  );
+  const { rows: afterTeams } = await pool.query(
+    `SELECT owner, total_pts, COALESCE(display_name, owner) AS display_name
+     FROM fantasy_teams ORDER BY total_pts DESC`
+  );
+  const afterRankMap = {};
+  afterTeams.forEach((t, i) => { afterRankMap[t.owner] = i + 1; });
+
+  const { rows: afterScores } = await pool.query(
+    `SELECT prs.player_id, prs.round_num, prs.pts,
+            p.name AS player_name, p.owner,
+            COALESCE(ft.display_name, p.owner) AS display_name
+     FROM player_round_scores prs
+     JOIN players p ON p.id = prs.player_id
+     JOIN fantasy_teams ft ON ft.owner = p.owner
+     WHERE prs.pts IS NOT NULL AND prs.blacked_out = FALSE`
+  );
+
+  const beforePlayerMap = {};
+  beforePlayers.forEach(p => { beforePlayerMap[p.id] = p; });
+
+  // Detect newly eliminated players
+  for (const player of afterPlayers) {
+    const prev = beforePlayerMap[player.id];
+    if (prev && !prev.is_eliminated && player.is_eliminated) {
+      await pool.query(
+        `INSERT INTO alerts (type, message, owner, player_name)
+         VALUES ('elimination', $1, $2, $3)`,
+        [
+          `${player.display_name} loses ${player.name} — ${player.ncaa_team} eliminated`,
+          player.owner,
+          player.name,
+        ]
+      );
+    }
+  }
+
+  // Detect scoring milestones (new score of 20+ in a round)
+  for (const score of afterScores) {
+    const key = `${score.player_id}-${score.round_num}`;
+    const prevPts = before.scoreMap[key];
+    // Fire if this is a newly recorded score (wasn't there before) and >= 20 pts
+    if (prevPts === undefined && score.pts >= 20) {
+      const roundLabel = ROUND_NAMES[score.round_num] || `Round ${score.round_num}`;
+      await pool.query(
+        `INSERT INTO alerts (type, message, owner, player_name)
+         VALUES ('milestone', $1, $2, $3)`,
+        [
+          `${score.player_name} drops ${score.pts} pts for ${score.display_name} in ${roundLabel}!`,
+          score.owner,
+          score.player_name,
+        ]
+      );
+    }
+  }
+
+  // Detect rank changes (only when scores have actually changed)
+  for (const team of afterTeams) {
+    const prevRank = beforeRanks[team.owner];
+    const newRank = afterRankMap[team.owner];
+    if (prevRank && newRank && prevRank !== newRank) {
+      const dir = newRank < prevRank ? `jumps to #${newRank}` : `falls to #${newRank}`;
+      await pool.query(
+        `INSERT INTO alerts (type, message, owner)
+         VALUES ('rank_change', $1, $2)`,
+        [`${team.display_name} ${dir} in the standings`, team.owner]
+      );
+    }
+  }
+}
+
 // Main scrape function
 async function scrape() {
   console.log('[scraper] Starting scrape at', new Date().toISOString());
   try {
+    // Snapshot state before scrape for alert diffing
+    const beforeState = await snapshotBeforeScrape();
+
     const events = await fetchTournamentGames();
     console.log(`[scraper] Found ${events.length} tournament events`);
 
@@ -439,7 +552,7 @@ async function scrape() {
       if (gameStatus === 'pre') continue;
 
       const roundNum = getRoundNum(event);
-      if (!roundNum || roundNum < 1) continue;
+      if (roundNum === null || roundNum === undefined || roundNum < 0) continue;
 
       const boxScore = await fetchBoxScore(event.id);
       if (boxScore) {
@@ -453,6 +566,9 @@ async function scrape() {
     await updateEliminationStatus();
     await updateEliminationByCSVAbbrev();
     await recomputeTotals();
+
+    // Detect and store alerts based on what changed
+    await detectAndInsertAlerts(beforeState);
 
     await pool.query(
       `INSERT INTO scrape_log (status, message) VALUES ('ok', $1)`,

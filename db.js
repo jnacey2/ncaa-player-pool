@@ -71,6 +71,23 @@ async function initSchema() {
       status VARCHAR(20) DEFAULT 'ok',
       message TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS alerts (
+      id SERIAL PRIMARY KEY,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      type VARCHAR(30) NOT NULL,
+      message TEXT NOT NULL,
+      owner VARCHAR(100),
+      player_name VARCHAR(200),
+      seen BOOLEAN DEFAULT FALSE
+    );
+
+    CREATE TABLE IF NOT EXISTS commentary (
+      id SERIAL PRIMARY KEY,
+      generated_at TIMESTAMPTZ DEFAULT NOW(),
+      narrative TEXT,
+      team_blurbs JSONB
+    );
   `);
 
   // Migrations: add columns / constraints that may not exist on older DB instances

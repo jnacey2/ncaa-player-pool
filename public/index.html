@@ -21,6 +21,25 @@
       </div>
     </header>
 
+    <!-- ── Alert Banner ────────────────────────────────────────── -->
+    <div id="alert-banner" class="hidden">
+      <span id="alert-icon"></span>
+      <span id="alert-message"></span>
+      <div id="alert-actions">
+        <span id="alert-more" class="hidden"></span>
+        <button id="alert-dismiss" aria-label="Dismiss">×</button>
+      </div>
+    </div>
+
+    <!-- ── Alert History Drawer ─────────────────────────────────── -->
+    <div id="alert-drawer" class="hidden">
+      <div id="alert-drawer-header">
+        Recent Alerts
+        <button id="alert-drawer-close">×</button>
+      </div>
+      <div id="alert-drawer-list"></div>
+    </div>
+
     <!-- ── Main Layout ─────────────────────────────────────────── -->
     <div id="main-layout">
 
@@ -43,6 +62,20 @@
           <h2 class="section-title">Leaderboard</h2>
           <div id="leaderboard-strip">
             <div class="loading-msg">Loading standings...</div>
+          </div>
+        </section>
+
+        <!-- Tournament Commentary -->
+        <section id="commentary-section">
+          <div id="commentary-header">
+            <h2 class="section-title">Tournament Commentary</h2>
+            <div id="commentary-meta">
+              <span id="commentary-timestamp"></span>
+              <button id="commentary-regen-btn" title="Regenerate commentary">↺ Regenerate</button>
+            </div>
+          </div>
+          <div id="commentary-narrative">
+            <div class="loading-msg">Commentary generates every 2 hours on game days...</div>
           </div>
         </section>
 
