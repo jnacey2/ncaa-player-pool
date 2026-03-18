@@ -57,28 +57,33 @@
       <!-- ── Main Content ───────────────────────────────────────── -->
       <main id="content">
 
-        <!-- Leaderboard Strip -->
-        <section id="leaderboard-section">
-          <h2 class="section-title">Leaderboard</h2>
-          <div id="leaderboard-strip">
-            <div class="loading-msg">Loading standings...</div>
-          </div>
-        </section>
+        <!-- Leaderboard + Commentary Row -->
+        <div id="top-row">
 
-        <!-- Tournament Commentary -->
-        <section id="commentary-section">
-          <div id="commentary-header">
-            <h2 class="section-title">Tournament Commentary</h2>
-            <div id="commentary-meta">
-              <span id="commentary-timestamp"></span>
-              <button id="commentary-regen-btn" title="Regenerate commentary">↺ Regenerate</button>
+          <!-- Leaderboard (vertical) -->
+          <section id="leaderboard-section">
+            <h2 class="section-title">Leaderboard</h2>
+            <div id="leaderboard-strip">
+              <div class="loading-msg">Loading standings...</div>
             </div>
-          </div>
-          <div id="commentary-narrative">
-            <div class="loading-msg">Commentary generates every 2 hours on game days...</div>
-          </div>
-          <div id="commentary-picks" class="hidden"></div>
-        </section>
+          </section>
+
+          <!-- Tournament Commentary -->
+          <section id="commentary-section">
+            <div id="commentary-header">
+              <h2 class="section-title">Tournament Commentary</h2>
+              <div id="commentary-meta">
+                <span id="commentary-timestamp"></span>
+                <button id="commentary-regen-btn" title="Regenerate commentary">↺ Regenerate</button>
+              </div>
+            </div>
+            <div id="commentary-narrative">
+              <div class="loading-msg">Commentary generates every 2 hours on game days...</div>
+            </div>
+            <div id="commentary-picks" class="hidden"></div>
+          </section>
+
+        </div>
 
         <!-- Team Cards Grid -->
         <section id="cards-section">

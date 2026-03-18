@@ -555,29 +555,47 @@ html, body {
   margin-bottom: 12px;
 }
 
+/* ─── Top Row (Leaderboard + Commentary side-by-side) ────────────────────── */
+#top-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+#leaderboard-section {
+  width: 230px;
+  min-width: 230px;
+  flex-shrink: 0;
+}
+
+#commentary-section {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ─── Leaderboard Strip ───────────────────────────────────────────────────── */
 #leaderboard-strip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .lb-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 8px;
-  padding: 8px 14px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
-  min-width: 170px;
+  transition: border-color 0.2s, background 0.2s;
+  width: 100%;
 }
 
 .lb-card:hover {
   border-color: var(--gold);
-  transform: translateY(-1px);
+  background: rgba(201, 162, 39, 0.06);
 }
 
 .lb-rank {
@@ -850,6 +868,14 @@ td.col-total {
 @media (max-width: 900px) {
   #sidebar { width: 260px; min-width: 260px; }
   #cards-grid { grid-template-columns: 1fr; }
+  #leaderboard-section { width: 190px; min-width: 190px; }
+}
+
+@media (max-width: 700px) {
+  #top-row { flex-direction: column; }
+  #leaderboard-section { width: 100%; min-width: unset; }
+  #leaderboard-strip { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .lb-card { width: auto; min-width: 140px; flex: 1; }
 }
 
 @media (max-width: 640px) {

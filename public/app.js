@@ -266,12 +266,10 @@ function renderLeaderboard() {
         <div class="lb-info">
           <div class="lb-owner">${name}</div>
           <div class="lb-stats">
-            <span class="lb-pts">${team.total_pts} pts</span>
-            &nbsp;·&nbsp;
-            <span class="ceiling-badge">▲${ceiling}</span>
-            &nbsp;·&nbsp;
-            <span>${team.players_remaining}/10 alive</span>
+            <span class="lb-pts">${team.total_pts}</span>
+            <span class="ceiling-badge"> ▲${ceiling}</span>
           </div>
+          <div class="lb-stats">${team.players_remaining}/10 alive</div>
         </div>
       </div>
     `;
