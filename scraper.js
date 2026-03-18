@@ -123,25 +123,55 @@ async function fetchBracket() {
   }
 }
 
+// Fallback: infer round from game date when ESPN text labels are ambiguous
+const DATE_ROUND_MAP = {
+  '2026-03-18': 0, '2026-03-19': 0,  // First Four
+  '2026-03-20': 1, '2026-03-21': 1,  // First Round
+  '2026-03-22': 2, '2026-03-23': 2,  // Second Round
+  '2026-03-27': 3, '2026-03-28': 3,  // Sweet 16
+  '2026-03-29': 4, '2026-03-30': 4,  // Elite Eight
+  '2026-04-05': 5,                    // Final Four
+  '2026-04-07': 6,                    // Championship
+};
+
 // Parse round number from ESPN event data
 function getRoundNum(event) {
   try {
-    const notes = event.notes || [];
-    for (const note of notes) {
-      const text = note.headline || '';
-      for (const [label, num] of Object.entries(ROUND_LABEL_MAP)) {
-        if (text.includes(label)) return num;
-      }
+    const allTexts = [];
+
+    // Collect all note/headline texts
+    for (const note of (event.notes || [])) {
+      if (note.headline) allTexts.push(note.headline);
     }
-    // Try competition notes
     const comp = event.competitions?.[0];
-    const compNotes = comp?.notes || [];
-    for (const note of compNotes) {
-      const text = note.headline || '';
+    for (const note of (comp?.notes || [])) {
+      if (note.headline) allTexts.push(note.headline);
+    }
+
+    // Check each text against label map — but skip a match if the ONLY
+    // reason it matched was a generic tournament-name substring like
+    // "Championship" appearing in "NCAA Championship - First Four"
+    for (const text of allTexts) {
       for (const [label, num] of Object.entries(ROUND_LABEL_MAP)) {
-        if (text.includes(label)) return num;
+        if (text.includes(label)) {
+          // If we matched 'Championship' but the text also contains a
+          // more specific early-round label, skip this match and keep looking
+          if (label === 'Championship' && (
+            text.includes('First Four') || text.includes('Opening Round') ||
+            text.includes('First Round') || text.includes('Round of 64') ||
+            text.includes('Second Round') || text.includes('Round of 32')
+          )) continue;
+          return num;
+        }
       }
     }
+
+    // Fallback: infer from game date
+    const gameDate = event.date ? toEasternDateStr(new Date(event.date)) : null;
+    if (gameDate && DATE_ROUND_MAP[gameDate] !== undefined) {
+      return DATE_ROUND_MAP[gameDate];
+    }
+
     return null;
   } catch {
     return null;
