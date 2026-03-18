@@ -668,8 +668,31 @@ html, body {
 .player-row.eliminated td.col-name { text-decoration: line-through; color: var(--gray-dark); }
 .player-row.eliminated td.col-team { color: var(--gray-dark); }
 .player-row.eliminated td.col-total { color: var(--gray-dark); }
-.player-row.playing td { background: rgba(34, 197, 94, 0.05); }
-.player-row.playing td.col-name { color: var(--green); }
+.player-row.playing td {
+  background: rgba(34, 197, 94, 0.12);
+}
+.player-row.playing td:first-child {
+  border-left: 3px solid var(--green);
+  padding-left: 7px;
+}
+.player-row.playing td.col-name {
+  color: var(--green);
+  font-weight: 700;
+}
+
+/* Live dot injected before player name via pseudo-element */
+.player-row.playing td.col-name::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: pulse-anim 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
 
 /* Round cells */
 .round-cell { position: relative; }
