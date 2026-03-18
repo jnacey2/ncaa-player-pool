@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NCAA Tournament Player Pool</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ── Top Header ──────────────────────────────────────────── -->
+    <header id="top-header">
+      <div id="header-left">
+        <span class="trophy">🏆</span>
+        <h1>NCAA Tournament Player Pool <span class="year">2026</span></h1>
+      </div>
+      <div id="header-right">
+        <span id="last-updated-label">Last updated: <span id="last-updated-time">—</span></span>
+        <span id="live-indicator" class="hidden"><span class="pulse-dot"></span> LIVE</span>
+      </div>
+    </header>
+
+    <!-- ── Main Layout ─────────────────────────────────────────── -->
+    <div id="main-layout">
+
+      <!-- ── Left Sidebar ──────────────────────────────────────── -->
+      <aside id="sidebar">
+        <nav id="sidebar-nav">
+          <button class="sidebar-tab active" data-tab="games">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Games
+          </button>
+          <button class="sidebar-tab" data-tab="bracket">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+            Bracket
+          </button>
+        </nav>
+
+        <div id="tab-games" class="tab-content active">
+          <div id="games-list">
+            <div class="loading-msg">Loading games...</div>
+          </div>
+        </div>
+
+        <div id="tab-bracket" class="tab-content">
+          <div id="bracket-view">
+            <div class="loading-msg">Loading bracket...</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ── Main Content ───────────────────────────────────────── -->
+      <main id="content">
+
+        <!-- Leaderboard Strip -->
+        <section id="leaderboard-section">
+          <h2 class="section-title">Leaderboard</h2>
+          <div id="leaderboard-strip">
+            <div class="loading-msg">Loading standings...</div>
+          </div>
+        </section>
+
+        <!-- Team Cards Grid -->
+        <section id="cards-section">
+          <h2 class="section-title">Team Rosters</h2>
+          <div id="cards-grid">
+            <div class="loading-msg">Loading team cards...</div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
