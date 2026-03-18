@@ -255,27 +255,31 @@ function renderLeaderboard() {
   const container = document.getElementById('leaderboard-strip');
   if (!state.standings.length) { container.innerHTML = '<div class="loading-msg">No data yet</div>'; return; }
 
-  container.innerHTML = state.standings.map((team, idx) => {
+  const header = `
+    <div class="lb-header">
+      <span class="lb-header-cell">#</span>
+      <span class="lb-header-cell">Name</span>
+      <span class="lb-header-cell right">Alive</span>
+      <span class="lb-header-cell right">Max</span>
+      <span class="lb-header-cell right">Pts</span>
+    </div>`;
+
+  const rows = state.standings.map((team, idx) => {
     const rank = idx + 1;
     const rankClass = rank <= 3 ? `rank-${rank}` : '';
     const name = esc(team.display_name || team.owner);
     const ceiling = team.max_possible_pts ?? team.total_pts;
     return `
       <div class="lb-card" onclick="scrollToCard('${esc(team.owner)}')" title="Jump to ${name}'s card">
-        <div class="lb-left">
-          <div class="lb-rank ${rankClass}">#${rank}</div>
-          <div class="lb-info">
-            <div class="lb-owner">${name}</div>
-            <div class="lb-sub">${team.players_remaining}/10 alive</div>
-          </div>
-        </div>
-        <div class="lb-score-block">
-          <div class="lb-pts">${team.total_pts}</div>
-          <div class="lb-ceiling">▲${ceiling}</div>
-        </div>
-      </div>
-    `;
+        <span class="lb-cell lb-rank ${rankClass}">${rank}</span>
+        <span class="lb-cell lb-owner">${name}</span>
+        <span class="lb-cell lb-alive-cell">${team.players_remaining}/10</span>
+        <span class="lb-cell lb-ceiling">▲${ceiling}</span>
+        <span class="lb-cell lb-pts">${team.total_pts}</span>
+      </div>`;
   }).join('');
+
+  container.innerHTML = header + rows;
 }
 
 function scrollToCard(owner) {
