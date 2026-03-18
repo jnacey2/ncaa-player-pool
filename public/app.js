@@ -262,14 +262,16 @@ function renderLeaderboard() {
     const ceiling = team.max_possible_pts ?? team.total_pts;
     return `
       <div class="lb-card" onclick="scrollToCard('${esc(team.owner)}')" title="Jump to ${name}'s card">
-        <div class="lb-rank ${rankClass}">#${rank}</div>
-        <div class="lb-info">
-          <div class="lb-owner">${name}</div>
-          <div class="lb-stats">
-            <span class="lb-pts">${team.total_pts}</span>
-            <span class="ceiling-badge"> ▲${ceiling}</span>
+        <div class="lb-left">
+          <div class="lb-rank ${rankClass}">#${rank}</div>
+          <div class="lb-info">
+            <div class="lb-owner">${name}</div>
+            <div class="lb-sub">${team.players_remaining}/10 alive</div>
           </div>
-          <div class="lb-stats">${team.players_remaining}/10 alive</div>
+        </div>
+        <div class="lb-score-block">
+          <div class="lb-pts">${team.total_pts}</div>
+          <div class="lb-ceiling">▲${ceiling}</div>
         </div>
       </div>
     `;

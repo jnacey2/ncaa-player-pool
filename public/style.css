@@ -597,7 +597,8 @@ html, body {
   padding: 8px 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
   width: 100%;
@@ -608,33 +609,69 @@ html, body {
   background: rgba(201, 162, 39, 0.06);
 }
 
+/* Left: rank + owner name stacked */
+.lb-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
 .lb-rank {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--gray-dark);
-  min-width: 24px;
+  min-width: 20px;
+  flex-shrink: 0;
 }
 
 .lb-rank.rank-1 { color: var(--gold-bright); }
 .lb-rank.rank-2 { color: #c0c0c0; }
 .lb-rank.rank-3 { color: #cd7f32; }
 
-.lb-info { display: flex; flex-direction: column; gap: 2px; }
+.lb-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 
 .lb-owner {
   font-size: 13px;
   font-weight: 700;
   color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.lb-stats {
-  font-size: 11px;
+.lb-sub {
+  font-size: 10px;
   color: var(--gray);
   font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
-.lb-pts { color: var(--gold-bright); font-weight: 700; }
+/* Right: large score */
+.lb-score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.lb-pts {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  line-height: 1;
+}
+
+.lb-ceiling {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gold);
+  opacity: 0.7;
+  margin-top: 1px;
+}
 
 /* ─── Team Cards Grid ─────────────────────────────────────────────────────── */
 #cards-grid {

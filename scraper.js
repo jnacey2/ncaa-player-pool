@@ -618,7 +618,7 @@ async function scrape() {
 }
 
 const INTERVAL_LIVE_MS    = 30_000;   // 30 seconds when games are live
-const INTERVAL_DEFAULT_MS = 300_000;  // 5 minutes otherwise
+const INTERVAL_DEFAULT_MS = 60_000;   // 1 minute otherwise (to catch game start quickly)
 
 async function hasLiveGames() {
   try {
