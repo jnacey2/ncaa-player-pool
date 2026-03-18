@@ -7,7 +7,6 @@ const REFRESH_MS = 30_000;
 let state = {
   standings: [],
   games: [],
-  bracket: [],
   lastUpdated: null,
   hasLive: false,
 };
@@ -21,15 +20,13 @@ async function fetchJSON(url) {
 
 async function loadAll() {
   try {
-    const [standings, games, bracket, lastUpdated] = await Promise.all([
+    const [standings, games, lastUpdated] = await Promise.all([
       fetchJSON('/api/standings'),
       fetchJSON('/api/games'),
-      fetchJSON('/api/bracket'),
       fetchJSON('/api/last-updated'),
     ]);
     state.standings = standings;
     state.games = games;
-    state.bracket = bracket;
     state.lastUpdated = lastUpdated;
     state.hasLive = games.some(g => g.status === 'live');
     render();
@@ -44,7 +41,6 @@ function render() {
   renderLeaderboard();
   renderCards();
   renderGames();
-  renderBracket();
 }
 
 /* ─── Header ──────────────────────────────────────────────────────────────── */
@@ -207,34 +203,39 @@ function buildPlayerRow(player) {
 function renderGames() {
   const container = document.getElementById('games-list');
   if (!state.games.length) {
-    container.innerHTML = '<div class="loading-msg">No tournament games found yet</div>';
+    container.innerHTML = '<div class="loading-msg">No tournament games found yet.<br>Check back once the bracket is set.</div>';
     return;
   }
 
-  // Group by date, live first
+  // Split live vs non-live
   const liveGames = state.games.filter(g => g.status === 'live');
   const otherGames = state.games.filter(g => g.status !== 'live');
 
-  // Group non-live by game_date
+  // Group non-live by normalized date string (YYYY-MM-DD)
   const byDate = {};
   otherGames.forEach(g => {
-    const key = g.game_date || 'TBD';
+    const key = normalizeDate(g.game_date || g.tip_time);
     if (!byDate[key]) byDate[key] = [];
     byDate[key].push(g);
   });
 
   let html = '';
 
+  // Live games float to the top
   if (liveGames.length) {
     html += `<div class="games-date-group">
-      <div class="games-date-header"><span class="pulse-dot"></span> Live Now</div>
+      <div class="games-date-header"><span class="pulse-dot"></span>&nbsp;Live Now</div>
       ${liveGames.map(gameCard).join('')}
     </div>`;
   }
 
-  const sortedDates = Object.keys(byDate).sort();
-  for (const date of sortedDates) {
-    const label = formatDate(date);
+  // Sort dates chronologically; show upcoming first, then completed
+  const today = todayStr();
+  const upcomingDates = Object.keys(byDate).filter(d => d >= today).sort();
+  const pastDates = Object.keys(byDate).filter(d => d < today).sort().reverse();
+
+  for (const date of [...upcomingDates, ...pastDates]) {
+    const label = formatDateLabel(date);
     html += `<div class="games-date-group">
       <div class="games-date-header">${label}</div>
       ${byDate[date].map(gameCard).join('')}
@@ -248,14 +249,18 @@ function gameCard(g) {
   const roundLabel = g.round_num ? ROUND_FULL[g.round_num - 1] || `Round ${g.round_num}` : '';
 
   let statusStr = '';
-  let statusClass = '';
   if (g.status === 'live') {
-    statusStr = g.display_clock ? `${g.display_clock} · ${ordinal(g.period)} Half` : 'In Progress';
-    statusClass = 'live';
+    statusStr = liveClockLabel(g.display_clock, g.period);
   } else if (g.status === 'final') {
     statusStr = 'Final';
   } else {
-    statusStr = g.tip_time ? new Date(g.tip_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD';
+    // Upcoming — show local tip time
+    if (g.tip_time) {
+      const d = new Date(g.tip_time);
+      statusStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+    } else {
+      statusStr = 'TBD';
+    }
   }
 
   const homeWin = g.status === 'final' && g.home_score > g.away_score;
@@ -279,82 +284,14 @@ function gameCard(g) {
   `;
 }
 
-/* ─── Bracket Sidebar ─────────────────────────────────────────────────────── */
-function renderBracket() {
-  const container = document.getElementById('bracket-view');
-  if (!state.bracket.length) {
-    container.innerHTML = '<div class="loading-msg">Bracket data populates once games begin</div>';
-    return;
-  }
-
-  // Build pool team set from standings (all ncaa teams our players are on)
-  const poolTeams = new Set();
-  state.standings.forEach(team => {
-    team.players?.forEach(p => poolTeams.add(p.ncaa_team?.toLowerCase()));
-  });
-
-  // Group by round
-  const byRound = {};
-  state.bracket.forEach(slot => {
-    const r = slot.current_round || 1;
-    if (!byRound[r]) byRound[r] = [];
-    byRound[r].push(slot);
-  });
-
-  // Also bucket surviving teams into the round they're currently playing
-  let html = '';
-  const maxRound = Math.max(...Object.keys(byRound).map(Number), 1);
-
-  for (let r = 1; r <= Math.max(maxRound, 6); r++) {
-    const teams = byRound[r] || [];
-    if (!teams.length) continue;
-
-    // Group by region
-    const byRegion = {};
-    teams.forEach(t => {
-      const reg = t.region || 'National';
-      if (!byRegion[reg]) byRegion[reg] = [];
-      byRegion[reg].push(t);
-    });
-
-    html += `<div class="bracket-round-group">
-      <div class="bracket-round-title">${ROUND_FULL[r - 1] || `Round ${r}`}</div>`;
-
-    for (const [region, rTeams] of Object.entries(byRegion)) {
-      if (region !== 'National') {
-        html += `<div class="bracket-region-label">${region}</div>`;
-      }
-      rTeams.sort((a, b) => (a.seed || 99) - (b.seed || 99));
-      html += rTeams.map(t => {
-        const isInPool = poolTeams.has(t.team_abbrev?.toLowerCase()) ||
-                         poolTeams.has(t.team_name?.toLowerCase());
-        const elimClass = t.is_eliminated ? ' eliminated' : '';
-        const poolClass = isInPool ? ' in-pool' : '';
-        return `
-          <div class="bracket-team-row${elimClass}${poolClass}">
-            <span class="bracket-seed">${t.seed || '?'}</span>
-            <span class="bracket-team-name${isInPool ? ' in-pool-name' : ''}">${esc(t.team_name)}</span>
-            ${t.is_eliminated ? `<span style="font-size:9px;color:#666">OUT R${t.eliminated_in_round}</span>` : ''}
-          </div>`;
-      }).join('');
-    }
-
-    html += '</div>';
-  }
-
-  container.innerHTML = html || '<div class="loading-msg">No bracket data yet</div>';
+// NCAA basketball: period 1 = 1st Half, period 2 = 2nd Half, 3+ = OT
+function liveClockLabel(clock, period) {
+  let halfLabel;
+  if (!period || period === 1) halfLabel = '1st Half';
+  else if (period === 2) halfLabel = '2nd Half';
+  else halfLabel = `${period - 2 === 1 ? '' : (period - 2) + ' '}OT`;
+  return clock ? `${clock} · ${halfLabel}` : halfLabel;
 }
-
-/* ─── Sidebar tab switching ───────────────────────────────────────────────── */
-document.querySelectorAll('.sidebar-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const tab = btn.dataset.tab;
-    document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(`tab-${tab}`).classList.add('active');
-  });
-});
 
 /* ─── Utilities ───────────────────────────────────────────────────────────── */
 function esc(str) {
@@ -366,19 +303,42 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-function formatDate(dateStr) {
-  if (!dateStr || dateStr === 'TBD') return 'TBD';
-  try {
-    const d = new Date(dateStr + 'T12:00:00');
-    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  } catch { return dateStr; }
+// Extract YYYY-MM-DD from any date value (string or ISO timestamp)
+function normalizeDate(val) {
+  if (!val) return 'TBD';
+  const s = String(val);
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // ISO timestamp — just take the date portion in UTC to avoid day-shift
+  const match = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : 'TBD';
 }
 
-function ordinal(n) {
-  if (!n) return '';
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+// Return today's date as YYYY-MM-DD in local time
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Human-readable date label with Today/Tomorrow callouts
+function formatDateLabel(dateStr) {
+  if (!dateStr || dateStr === 'TBD') return 'TBD';
+  const today = todayStr();
+  const tomorrow = (() => {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    return normalizeDate(d.toISOString());
+  })();
+
+  if (dateStr === today) return 'Today';
+  if (dateStr === tomorrow) return 'Tomorrow';
+
+  // Parse as local noon to avoid any timezone day-shift
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /* ─── Bootstrap ───────────────────────────────────────────────────────────── */
