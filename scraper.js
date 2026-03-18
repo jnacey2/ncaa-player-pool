@@ -123,6 +123,29 @@ async function fetchBracket() {
   }
 }
 
+// Convert ESPN status type name → our 3-state status
+// ESPN uses many mid-game states (HALFTIME, END_OF_PERIOD, etc.) that
+// all mean "game is in progress" for our purposes
+function espnStatusToGameStatus(espnStatus) {
+  if (!espnStatus) return 'pre';
+  const s = espnStatus.toUpperCase();
+  if (
+    s.includes('IN_PROGRESS') ||
+    s.includes('HALFTIME') ||
+    s.includes('END_OF_PERIOD') ||
+    s.includes('END_PERIOD') ||
+    s.includes('OVERTIME') ||
+    s.includes('DELAYED')
+  ) return 'live';
+  if (
+    s.includes('FINAL') ||
+    s.includes('FULL_TIME') ||
+    s.includes('FORFEIT') ||
+    s.includes('CANCELED')
+  ) return 'final';
+  return 'pre';
+}
+
 // Fallback: infer round from game date when ESPN text labels are ambiguous
 const DATE_ROUND_MAP = {
   '2026-03-18': 0, '2026-03-19': 0,  // First Four
@@ -190,9 +213,7 @@ async function upsertGames(events) {
     const displayClock = event.status?.displayClock || '';
     const period = event.status?.period || 0;
 
-    let gameStatus = 'pre';
-    if (status.includes('IN_PROGRESS')) gameStatus = 'live';
-    else if (status.includes('FINAL') || status.includes('END_OF_')) gameStatus = 'final';
+    const gameStatus = espnStatusToGameStatus(status);
 
     const tipTime = event.date ? new Date(event.date) : null;
     // Use Eastern time for game_date — tournament games are always in the US
@@ -579,8 +600,7 @@ async function scrape() {
     // Process box scores for live and recently finished games
     for (const event of events) {
       const status = event.status?.type?.name || '';
-      const gameStatus = status.includes('IN_PROGRESS') ? 'live'
-        : (status.includes('FINAL') || status.includes('END_OF_')) ? 'final' : 'pre';
+      const gameStatus = espnStatusToGameStatus(status);
 
       if (gameStatus === 'pre') continue;
 
