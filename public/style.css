@@ -569,13 +569,25 @@ html, body {
 #top-row {
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 #leaderboard-section {
-  width: 420px;
-  min-width: 420px;
+  width: 210px;
+  min-width: 210px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#leaderboard-section .section-title {
+  flex-shrink: 0;
+}
+
+#leaderboard-strip {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 #commentary-section {
@@ -585,8 +597,8 @@ html, body {
 
 /* ─── Leaderboard Strip ───────────────────────────────────────────────────── */
 #leaderboard-strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
 }
 
@@ -912,19 +924,12 @@ td.col-total {
 ::-webkit-scrollbar-thumb:hover { background: var(--gray); }
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 1100px) {
-  #leaderboard-section { width: 340px; min-width: 340px; }
-}
-
 @media (max-width: 900px) {
   #sidebar { width: 260px; min-width: 260px; }
   #cards-grid { grid-template-columns: 1fr; }
-  #top-row { flex-direction: column; }
-  #leaderboard-section { width: 100%; min-width: unset; }
-}
-
-@media (max-width: 700px) {
-  #leaderboard-strip { grid-template-columns: 1fr; }
+  #top-row { flex-direction: column; align-items: stretch; }
+  #leaderboard-section { width: 100%; min-width: unset; height: auto; }
+  #leaderboard-strip { overflow-y: visible; max-height: none; }
 }
 
 @media (max-width: 640px) {
