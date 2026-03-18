@@ -8,6 +8,12 @@ const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens
 // NCAA tournament group ID (68-team bracket)
 const TOURNAMENT_GROUP = '100';
 
+// Convert a Date to YYYY-MM-DD in US Eastern time
+// (en-CA locale returns dates as YYYY-MM-DD, so we piggyback on that)
+function toEasternDateStr(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
 // Map ESPN round label → round_num 1-6
 const ROUND_LABEL_MAP = {
   'First Round': 1,
@@ -124,7 +130,9 @@ async function upsertGames(events) {
     else if (status.includes('FINAL') || status.includes('END_OF_')) gameStatus = 'final';
 
     const tipTime = event.date ? new Date(event.date) : null;
-    const gameDate = tipTime ? tipTime.toISOString().split('T')[0] : null;
+    // Use Eastern time for game_date — tournament games are always in the US
+    // and evening ET games would otherwise roll into the next UTC day
+    const gameDate = tipTime ? toEasternDateStr(tipTime) : null;
 
     const competitors = comp.competitors || [];
     let homeTeam = '', awayTeam = '', homeScore = 0, awayScore = 0;

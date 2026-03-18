@@ -211,10 +211,10 @@ function renderGames() {
   const liveGames = state.games.filter(g => g.status === 'live');
   const otherGames = state.games.filter(g => g.status !== 'live');
 
-  // Group non-live by normalized date string (YYYY-MM-DD)
+  // Group non-live by local date (derived from tip_time in browser's timezone)
   const byDate = {};
   otherGames.forEach(g => {
-    const key = normalizeDate(g.game_date || g.tip_time);
+    const key = g.tip_time ? localDateStr(new Date(g.tip_time)) : normalizeDate(g.game_date);
     if (!byDate[key]) byDate[key] = [];
     byDate[key].push(g);
   });
@@ -314,13 +314,17 @@ function normalizeDate(val) {
   return match ? match[1] : 'TBD';
 }
 
-// Return today's date as YYYY-MM-DD in local time
-function todayStr() {
-  const d = new Date();
+// Return a Date as YYYY-MM-DD in the browser's local timezone
+function localDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+// Return today's date as YYYY-MM-DD in local time
+function todayStr() {
+  return localDateStr(new Date());
 }
 
 // Human-readable date label with Today/Tomorrow callouts
