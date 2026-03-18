@@ -397,6 +397,72 @@ function buildPlayerRow(player) {
   `;
 }
 
+/* ─── Team name matching (CSV abbrev → ESPN display name keywords) ─────────── */
+const TEAM_KEYWORDS = {
+  'Ariz':    'arizona',         'Ark':    'arkansas',
+  'Bama':    'alabama',         'BYU':    'byu',
+  'Duke':    'duke',            'Fla':    'florida',
+  'Gonz':    'gonzaga',         'Hou':    'houston',
+  'IaSt':    'iowa state',      'Ill':    'illinois',
+  'Iowa':    'iowa',            'Kan':    'kansas',
+  'KY':      'kentucky',        'Leh':    'lehigh',
+  'Lou':     'louisville',      'Mia-FL': 'miami',
+  'Mich':    'michigan',        'MSU':    'michigan state',
+  'Nebras':  'nebraska',        'OhSt':   'ohio state',
+  'Pur':     'purdue',          'SCla':   'santa clara',
+  'SMU':     'smu',             'SoFL':   'south florida',
+  'StJon':   "st. john",        'StLou':  'saint louis',
+  'StMar':   "saint mary",      'Tenn':   'tennessee',
+  'Tex':     'texas',           'TxTch':  'texas tech',
+  'UCLA':    'ucla',            'UConn':  'connecticut',
+  'UGA':     'georgia',         'UNC':    'north carolina',
+  'UtSt':    'utah state',      'UVA':    'virginia',
+  'VCU':     'vcu',             'Vand':   'vanderbilt',
+  'Wisc':    'wisconsin',       'PVAM':   'prairie view',
+  'Akr':     'akron',           'Wisc':   'wisconsin',
+};
+
+function playerTeamMatchesGame(ncaaTeam, espnTeamName) {
+  const keyword = TEAM_KEYWORDS[ncaaTeam] || ncaaTeam.toLowerCase();
+  const haystack = espnTeamName.toLowerCase();
+  return haystack.includes(keyword) || keyword.includes(haystack);
+}
+
+function findPlayersInGame(game) {
+  const results = [];
+  for (const team of state.standings) {
+    for (const player of team.players || []) {
+      const inHome = playerTeamMatchesGame(player.ncaa_team, game.home_team || '');
+      const inAway = playerTeamMatchesGame(player.ncaa_team, game.away_team || '');
+      if (inHome || inAway) {
+        const roundPts = player.rounds?.[game.round_num ?? 1]?.pts ?? null;
+        results.push({
+          name: player.name,
+          ncaa_team: player.ncaa_team,
+          owner: team.display_name || team.owner,
+          pts: roundPts,
+          total_pts: player.total_pts,
+          side: inHome ? game.home_team : game.away_team,
+        });
+      }
+    }
+  }
+  // Sort: players with pts first, then alphabetically
+  return results.sort((a, b) => (b.pts ?? -1) - (a.pts ?? -1));
+}
+
+// Track which live game cards are expanded
+const expandedGames = new Set();
+
+function toggleGameExpand(gameId) {
+  if (expandedGames.has(gameId)) {
+    expandedGames.delete(gameId);
+  } else {
+    expandedGames.add(gameId);
+  }
+  renderGames();
+}
+
 /* ─── Games Sidebar ───────────────────────────────────────────────────────── */
 function renderGames() {
   const container = document.getElementById('games-list');
@@ -444,40 +510,72 @@ function renderGames() {
 }
 
 function gameCard(g) {
-  const roundLabel = g.round_num ? ROUND_FULL[g.round_num - 1] || `Round ${g.round_num}` : '';
+  const roundNum = g.round_num != null ? g.round_num : 1;
+  const roundLabel = ROUND_FULL[roundNum] != null ? ROUND_FULL[roundNum] : `Round ${roundNum}`;
+  const isLive = g.status === 'live';
+  const isExpanded = expandedGames.has(g.espn_game_id);
 
   let statusStr = '';
-  if (g.status === 'live') {
+  if (isLive) {
     statusStr = liveClockLabel(g.display_clock, g.period);
   } else if (g.status === 'final') {
     statusStr = 'Final';
   } else {
-    // Upcoming — show local tip time
-    if (g.tip_time) {
-      const d = new Date(g.tip_time);
-      statusStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-    } else {
-      statusStr = 'TBD';
-    }
+    statusStr = g.tip_time
+      ? new Date(g.tip_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+      : 'TBD';
   }
 
   const homeWin = g.status === 'final' && g.home_score > g.away_score;
   const awayWin = g.status === 'final' && g.away_score > g.home_score;
 
+  // Build pool players dropdown for live games
+  let dropdownHTML = '';
+  if (isLive && isExpanded) {
+    const poolPlayers = findPlayersInGame(g);
+    if (poolPlayers.length) {
+      const rows = poolPlayers.map(p => `
+        <div class="game-pool-row">
+          <span class="game-pool-name">${esc(p.name)}</span>
+          <span class="game-pool-owner">${esc(p.owner)}</span>
+          <span class="game-pool-pts">${p.pts !== null ? p.pts : '—'}</span>
+        </div>`).join('');
+      dropdownHTML = `
+        <div class="game-pool-dropdown">
+          <div class="game-pool-header">
+            <span>Player</span><span>Team</span><span>Pts</span>
+          </div>
+          ${rows}
+        </div>`;
+    } else {
+      dropdownHTML = `<div class="game-pool-dropdown game-pool-empty">No drafted players in this game</div>`;
+    }
+  }
+
+  const clickAttr = isLive
+    ? `onclick="toggleGameExpand('${g.espn_game_id}')" style="cursor:pointer"`
+    : '';
+
   return `
-    <div class="game-card ${g.status}">
-      ${roundLabel ? `<div class="game-round-label">${roundLabel}</div>` : ''}
-      <div class="game-matchup">
-        <div class="game-team-row ${awayWin ? 'winner' : ''}">
-          <span class="game-team-name">${esc(g.away_team)}</span>
-          <span class="game-score">${g.status !== 'pre' ? g.away_score : ''}</span>
+    <div class="game-card ${g.status}${isExpanded ? ' expanded' : ''}" ${clickAttr}>
+      <div class="game-card-main">
+        ${roundLabel ? `<div class="game-round-label">${roundLabel}</div>` : ''}
+        <div class="game-matchup">
+          <div class="game-team-row ${awayWin ? 'winner' : ''}">
+            <span class="game-team-name">${esc(g.away_team)}</span>
+            <span class="game-score">${g.status !== 'pre' ? g.away_score : ''}</span>
+          </div>
+          <div class="game-team-row ${homeWin ? 'winner' : ''}">
+            <span class="game-team-name">${esc(g.home_team)}</span>
+            <span class="game-score">${g.status !== 'pre' ? g.home_score : ''}</span>
+          </div>
         </div>
-        <div class="game-team-row ${homeWin ? 'winner' : ''}">
-          <span class="game-team-name">${esc(g.home_team)}</span>
-          <span class="game-score">${g.status !== 'pre' ? g.home_score : ''}</span>
+        <div class="game-status-bar ${isLive ? 'live' : ''}">
+          ${statusStr}
+          ${isLive ? `<span class="game-expand-hint">${isExpanded ? '▲ hide' : '▼ pool players'}</span>` : ''}
         </div>
       </div>
-      <div class="game-status-bar ${g.status === 'live' ? 'live' : ''}">${statusStr}</div>
+      ${dropdownHTML}
     </div>
   `;
 }
