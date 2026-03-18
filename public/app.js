@@ -1,6 +1,6 @@
 /* ─── Constants ───────────────────────────────────────────────────────────── */
-const ROUND_LABELS = ['R1', 'R2', 'S16', 'E8', 'F4', 'Champ'];
-const ROUND_FULL = ['First Round', 'Second Round', 'Sweet 16', 'Elite Eight', 'Final Four', 'Championship'];
+const ROUND_LABELS = ['Play-In', 'R1', 'R2', 'S16', 'E8', 'F4', 'Champ'];
+const ROUND_FULL = ['First Four', 'First Round', 'Second Round', 'Sweet 16', 'Elite Eight', 'Final Four', 'Championship'];
 const REFRESH_MS = 30_000;
 
 /* ─── State ───────────────────────────────────────────────────────────────── */
@@ -110,12 +110,12 @@ function buildTeamCard(team, rank) {
   const alive = team.players_remaining;
   const total = team.total_pts;
 
-  // Column totals per round
-  const roundTotals = Array(6).fill(0);
+  // Column totals per round (index 0 = play-in, 1-6 = main rounds)
+  const roundTotals = Array(7).fill(0);
   (team.players || []).forEach(p => {
     p.rounds?.forEach(r => {
       if (!r.blacked_out && r.pts != null) {
-        roundTotals[r.round - 1] += r.pts;
+        roundTotals[r.round] += r.pts;
       }
     });
   });
@@ -183,7 +183,6 @@ function buildPlayerRow(player) {
       return `<td class="round-cell blacked-out col-round"></td>`;
     }
     if (r.pts === null) {
-      // Future round — team still alive
       const liveClass = isPlaying && !isElim ? ' live-now' : '';
       return `<td class="round-cell no-pts col-round${liveClass}">—</td>`;
     }

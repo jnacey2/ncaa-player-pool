@@ -53,7 +53,7 @@ app.get('/api/standings', async (req, res) => {
     for (const player of players) {
       const rounds = scoreMap[player.id] || {};
       const roundData = [];
-      for (let r = 1; r <= 6; r++) {
+      for (let r = 0; r <= 6; r++) {
         roundData.push({
           round: r,
           pts: rounds[r]?.pts ?? null,

@@ -447,6 +447,11 @@ html, body {
   50% { opacity: 0.5; }
 }
 
+/* Play-In column — slightly muted to distinguish from main rounds */
+th.col-round:first-of-type,
+td.col-round:first-child { color: var(--gray); }
+th.col-round:first-of-type { font-style: italic; }
+
 /* Total column */
 td.col-total {
   font-weight: 700;

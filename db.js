@@ -80,6 +80,23 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
   `);
+  // Widen round_num check to include 0 (Play-In / First Four games)
+  await pool.query(`
+    DO $$
+    BEGIN
+      BEGIN
+        ALTER TABLE player_round_scores
+          DROP CONSTRAINT player_round_scores_round_num_check;
+      EXCEPTION WHEN undefined_object THEN NULL;
+      END;
+      BEGIN
+        ALTER TABLE player_round_scores
+          ADD CONSTRAINT player_round_scores_round_num_check
+          CHECK (round_num BETWEEN 0 AND 6);
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END;
+    END $$;
+  `);
   // Migrate unique constraint: fantrax_id alone → (fantrax_id, owner) composite
   // This allows the same player to appear on multiple fantasy teams
   await pool.query(`

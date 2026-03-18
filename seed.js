@@ -93,8 +93,8 @@ async function seed() {
 
       if (result.rows.length > 0) {
         const playerId = result.rows[0].id;
-        // Pre-create round score rows if they don't exist yet
-        for (let r = 1; r <= 6; r++) {
+        // Pre-create round score rows (0 = play-in, 1-6 = main tournament)
+        for (let r = 0; r <= 6; r++) {
           await client.query(
             `INSERT INTO player_round_scores (player_id, round_num, pts, blacked_out)
              VALUES ($1, $2, NULL, FALSE)
