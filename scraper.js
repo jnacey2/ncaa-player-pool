@@ -632,10 +632,21 @@ async function hasLiveGames() {
 }
 
 async function schedulerLoop() {
-  await scrape();
-  const live = await hasLiveGames();
-  const delay = live ? INTERVAL_LIVE_MS : INTERVAL_DEFAULT_MS;
-  console.log(`[scraper] Next scrape in ${delay / 1000}s (${live ? 'LIVE games active' : 'no live games'})`);
+  let delay = INTERVAL_DEFAULT_MS;
+  try {
+    await scrape();
+  } catch (err) {
+    // scrape() has its own try/catch, but guard here too so the loop never dies
+    console.error('[scraper] Unexpected error outside scrape():', err.message);
+  }
+  try {
+    const live = await hasLiveGames();
+    delay = live ? INTERVAL_LIVE_MS : INTERVAL_DEFAULT_MS;
+    console.log(`[scraper] Next scrape in ${delay / 1000}s (${live ? 'LIVE' : 'idle'})`);
+  } catch (err) {
+    console.error('[scraper] Error checking live games, defaulting to 5min:', err.message);
+  }
+  // Always reschedule — even if both blocks above threw
   setTimeout(schedulerLoop, delay);
 }
 
