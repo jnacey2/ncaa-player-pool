@@ -80,15 +80,24 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE fantasy_teams ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
   `);
-  // Add unique constraint on fantrax_id if not already present
+  // Migrate unique constraint: fantrax_id alone → (fantrax_id, owner) composite
+  // This allows the same player to appear on multiple fantasy teams
   await pool.query(`
     DO $$
     BEGIN
-      IF NOT EXISTS (
+      -- Drop old single-column constraint if present
+      IF EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'players_fantrax_id_key' AND conrelid = 'players'::regclass
       ) THEN
-        ALTER TABLE players ADD CONSTRAINT players_fantrax_id_key UNIQUE (fantrax_id);
+        ALTER TABLE players DROP CONSTRAINT players_fantrax_id_key;
+      END IF;
+      -- Add composite constraint if not already present
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'players_fantrax_id_owner_key' AND conrelid = 'players'::regclass
+      ) THEN
+        ALTER TABLE players ADD CONSTRAINT players_fantrax_id_owner_key UNIQUE (fantrax_id, owner);
       END IF;
     END $$;
   `);

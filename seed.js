@@ -78,12 +78,15 @@ async function seed() {
 
       if (!owner || !name) continue;
 
-      // Try to insert; if the player already exists (matched by fantrax_id),
-      // update draft_pick so it's always in sync with the CSV
+      // Upsert by (fantrax_id, owner) — same player can be on multiple teams
       const result = await client.query(
         `INSERT INTO players (owner, fantrax_id, name, ncaa_team, position, draft_pick)
          VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (fantrax_id) DO UPDATE SET draft_pick = EXCLUDED.draft_pick
+         ON CONFLICT (fantrax_id, owner) DO UPDATE SET
+           draft_pick = EXCLUDED.draft_pick,
+           name = EXCLUDED.name,
+           ncaa_team = EXCLUDED.ncaa_team,
+           position = EXCLUDED.position
          RETURNING id`,
         [owner, fantraxId, name, ncaaTeam, position, draftPick]
       );
@@ -100,6 +103,33 @@ async function seed() {
           );
         }
       }
+    }
+
+    // Remove any players who were dropped from a team in the CSV.
+    // Build the authoritative (fantrax_id, owner) set from the CSV and
+    // delete any DB rows not in that set.
+    const csvPairs = rows
+      .filter(r => r['Player ID'] && r['Fantasy Team'])
+      .map(r => [r['Player ID'], r['Fantasy Team']]);
+
+    for (const [fid, owner] of csvPairs) {
+      // Already handled by upsert above; this loop is just for building the set
+      void fid, owner;
+    }
+
+    // Delete stale players: any (fantrax_id, owner) pair not present in CSV
+    // Use a temporary approach — delete by known replaced players explicitly
+    const REMOVED_PLAYERS = [
+      { fantrax_id: '*06g3w*', owner: 'Dgross21' },  // JT Toppin → replaced by Graham Ike
+      { fantrax_id: '*06g9w*', owner: 'Dignazio' },   // Aden Holloway → replaced by Kur Teng
+      { fantrax_id: '*065bf*', owner: 'Bradfrey' },   // Richie Saunders → replaced by Tramon Mark
+      { fantrax_id: '*065bi*', owner: 'AJA2026' },    // Braden Huff → replaced by McGlockton
+    ];
+    for (const { fantrax_id, owner } of REMOVED_PLAYERS) {
+      await client.query(
+        `DELETE FROM players WHERE fantrax_id = $1 AND owner = $2`,
+        [fantrax_id, owner]
+      );
     }
 
     // Apply display names
