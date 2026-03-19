@@ -308,13 +308,20 @@ async function buildPlayerIndex() {
 
 // Update player_round_scores from a completed/live box score
 // playerIndex is pre-built once per scrape cycle and passed in
-async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex) {
+// espnToCsv maps ESPN abbreviations → CSV ncaa_team for team validation
+async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espnToCsv) {
   if (!boxScore || !boxScore.boxscore) return;
 
   const { fuse } = playerIndex;
 
   const teams = boxScore.boxscore.players || [];
   for (const teamData of teams) {
+    // Resolve which CSV ncaa_team this box score section belongs to.
+    // This prevents cross-team name collisions (e.g. "Isaiah Brown" on FLA
+    // being matched to a different "Isaiah Brown" on another team).
+    const bsAbbr = (teamData.team?.abbreviation || '').toUpperCase();
+    const csvTeam = espnToCsv[bsAbbr] || ESPN_TO_CSV_ABBREV[bsAbbr] || null;
+
     const statistics = teamData.statistics || [];
     for (const statGroup of statistics) {
       const athletes = statGroup.athletes || [];
@@ -343,14 +350,19 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex) {
 
         const player = results[0].item;
 
+        // Team validation: if we know which team this box score section belongs to,
+        // reject the match if the player's ncaa_team doesn't match.
+        // This prevents crediting the wrong "Isaiah Brown" or "Malik Thomas".
+        if (csvTeam && player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
+
         // Only update if game is live or final (not pre-game)
         if (gameStatus === 'pre') continue;
 
         // Fix D: find ALL players with this name — the same player can appear
         // on multiple fantasy teams (e.g. Graham Ike on Kunkel AND Gross)
         const { rows: allMatching } = await pool.query(
-          `SELECT id FROM players WHERE LOWER(name) = LOWER($1)`,
-          [player.name]
+          `SELECT id FROM players WHERE LOWER(name) = LOWER($1) AND LOWER(ncaa_team) = LOWER($2)`,
+          [player.name, player.ncaa_team]
         );
 
         for (const { id: playerId } of allMatching) {
@@ -641,8 +653,15 @@ async function scrape() {
     const gameRoundMap = {};
     gameRoundRows.forEach(g => { gameRoundMap[g.espn_game_id] = g.round_num; });
 
-    // Build player index once per scrape cycle (Fix 2: avoids N rebuilds for N live games)
+    // Build player index once per scrape cycle
     const playerIndex = await buildPlayerIndex();
+
+    // Build ESPN abbreviation → CSV ncaa_team map for team validation in box scores
+    const teamMappings = await getTeamMappings();
+    const espnToCsv = {};
+    for (const [csvAbbrev, data] of Object.entries(teamMappings)) {
+      if (data.espn_abbrev) espnToCsv[data.espn_abbrev.toUpperCase()] = csvAbbrev;
+    }
 
     // Process box scores for live and recently finished games
     for (const event of events) {
@@ -656,7 +675,7 @@ async function scrape() {
 
       const boxScore = await fetchBoxScore(event.id);
       if (boxScore) {
-        await processBoxScore(boxScore, roundNum, gameStatus, playerIndex);
+        await processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espnToCsv);
       }
 
       // Small delay to be polite to ESPN

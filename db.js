@@ -123,6 +123,24 @@ async function initSchema() {
     ALTER TABLE games ADD COLUMN IF NOT EXISTS home_seed INTEGER;
     ALTER TABLE games ADD COLUMN IF NOT EXISTS away_seed INTEGER;
   `);
+  // Clear stale cross-team name collision scores:
+  // Isaiah Brown (FLA) was incorrectly credited with another "Isaiah Brown"'s points
+  await pool.query(`
+    UPDATE player_round_scores SET pts = NULL
+    WHERE pts IS NOT NULL AND round_num = 1
+    AND player_id IN (
+      SELECT id FROM players WHERE LOWER(name) = 'isaiah brown' AND LOWER(ncaa_team) = 'fla'
+    )
+  `);
+  // Malik Thomas (UVA) got pts=0 written to round 0 from a First Four name collision
+  await pool.query(`
+    UPDATE player_round_scores SET pts = NULL
+    WHERE round_num = 0 AND pts = 0
+    AND player_id IN (
+      SELECT id FROM players WHERE LOWER(name) = 'malik thomas' AND LOWER(ncaa_team) = 'uva'
+    )
+  `);
+
   // ESPN name override: Nicholas Boyd (Wisc) → "Nick Boyd" (ESPN uses shortened first name)
   await pool.query(`
     UPDATE players SET espn_name = 'Nick Boyd'
