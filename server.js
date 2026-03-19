@@ -193,6 +193,28 @@ app.post('/api/commentary/regenerate', async (req, res) => {
   }
 });
 
+// GET /api/debug — diagnostic snapshot for bug investigation
+app.get('/api/debug', async (req, res) => {
+  try {
+    const [alertCounts, recentAlerts, playingNow, bracketElim, stuckPlayers] = await Promise.all([
+      pool.query(`SELECT type, COUNT(*) FROM alerts GROUP BY type ORDER BY type`),
+      pool.query(`SELECT type, message, created_at FROM alerts ORDER BY created_at DESC LIMIT 20`),
+      pool.query(`SELECT p.name, p.ncaa_team, ft.display_name AS owner FROM players p JOIN fantasy_teams ft ON ft.owner = p.owner WHERE p.is_playing_now = TRUE`),
+      pool.query(`SELECT team_abbrev, team_name, eliminated_in_round FROM bracket_slots WHERE is_eliminated = TRUE ORDER BY team_name`),
+      pool.query(`SELECT p.name, p.ncaa_team, ft.display_name AS owner, p.is_eliminated FROM players p JOIN fantasy_teams ft ON ft.owner = p.owner WHERE p.is_eliminated = FALSE AND p.ncaa_team IN (SELECT DISTINCT p2.ncaa_team FROM players p2 JOIN bracket_slots bs ON LOWER(bs.team_abbrev) = LOWER(p2.ncaa_team) WHERE bs.is_eliminated = TRUE)`),
+    ]);
+    res.json({
+      alertCounts: alertCounts.rows,
+      recentAlerts: recentAlerts.rows,
+      playingNow: playingNow.rows,
+      bracketEliminated: bracketElim.rows,
+      possiblyMissedEliminations: stuckPlayers.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Catch-all: serve index.html for client-side routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

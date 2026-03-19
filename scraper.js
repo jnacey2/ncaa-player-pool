@@ -299,6 +299,11 @@ async function processBoxScore(boxScore, roundNum, gameStatus) {
   const { fuse } = await buildPlayerIndex();
 
   const teams = boxScore.boxscore.players || [];
+  // #region agent log — Hypothesis C: log stat group names arrays to see if PTS is present
+  const statGroupNames = teams.flatMap(t => (t.statistics || []).map(sg => sg.names || []));
+  console.log('[DEBUG][HypC] stat group names arrays found:', JSON.stringify(statGroupNames));
+  fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:processBoxScore',message:'stat group names',data:{roundNum,gameStatus,statGroupNames},hypothesisId:'C',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   for (const teamData of teams) {
     const statistics = teamData.statistics || [];
     for (const statGroup of statistics) {
@@ -327,6 +332,11 @@ async function processBoxScore(boxScore, roundNum, gameStatus) {
         if (!results.length || results[0].score > 0.3) continue;
 
         const player = results[0].item;
+
+        // #region agent log — Hypothesis D: log when a pool player is matched (catches Graham Ike dup issue)
+        console.log(`[DEBUG][HypD] matched espnName="${espnName}" → player.id=${player.id} player.name="${player.name}" pts=${pts} round=${roundNum}`);
+        fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:processBoxScore:match',message:'pool player matched',data:{espnName,playerId:player.id,playerName:player.name,pts,roundNum},hypothesisId:'D',timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
 
         // Only update if game is live or final (not pre-game)
         if (gameStatus === 'pre') continue;
@@ -404,6 +414,11 @@ async function updateEliminationByCSVAbbrev() {
     `SELECT DISTINCT ncaa_team FROM players`
   );
 
+  // #region agent log — Hypothesis B: which pool teams are failing to match eliminated ESPN teams?
+  console.log('[DEBUG][HypB] eliminated ESPN teams in bracket_slots:', JSON.stringify(elimTeams.map(t => ({ abbrev: t.team_abbrev, name: t.team_name, round: t.eliminated_in_round }))));
+  fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:updateEliminationByCSVAbbrev',message:'eliminated ESPN teams',data:{elimTeams:elimTeams.map(t=>({a:t.team_abbrev,n:t.team_name,r:t.eliminated_in_round}))},hypothesisId:'B',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
   for (const { ncaa_team } of poolTeams) {
     const normalized = normalizeTeamAbbrev(ncaa_team);
 
@@ -423,6 +438,10 @@ async function updateEliminationByCSVAbbrev() {
         eliminated_in_round = fuzzyResults[0].item.eliminated_in_round;
       }
     }
+
+    // #region agent log — Hypothesis B: log each pool team's match result
+    console.log(`[DEBUG][HypB] pool team "${ncaa_team}" → eliminated_in_round=${eliminated_in_round}, directMatch=${!!directMatch}`);
+    // #endregion
 
     if (!eliminated_in_round) continue;
 
@@ -534,6 +553,10 @@ async function detectAndInsertAlerts(before, displayNames) {
   const beforePlayerMap = {};
   beforePlayers.forEach(p => { beforePlayerMap[p.id] = p; });
 
+  // #region agent log
+  let _alertCounts = { elimination: 0, milestone: 0, rank_change: 0 };
+  // #endregion
+
   // Detect newly eliminated players
   for (const player of afterPlayers) {
     const prev = beforePlayerMap[player.id];
@@ -547,6 +570,9 @@ async function detectAndInsertAlerts(before, displayNames) {
           player.name,
         ]
       );
+      // #region agent log
+      _alertCounts.elimination++;
+      // #endregion
     }
   }
 
@@ -566,6 +592,9 @@ async function detectAndInsertAlerts(before, displayNames) {
           score.player_name,
         ]
       );
+      // #region agent log
+      _alertCounts.milestone++;
+      // #endregion
     }
   }
 
@@ -580,8 +609,16 @@ async function detectAndInsertAlerts(before, displayNames) {
          VALUES ('rank_change', $1, $2)`,
         [`${team.display_name} ${dir} in the standings`, team.owner]
       );
+      // #region agent log
+      _alertCounts.rank_change++;
+      // #endregion
     }
   }
+
+  // #region agent log — Hypothesis A: are rank_change alerts flooding each cycle?
+  console.log('[DEBUG][HypA] alerts fired this cycle:', JSON.stringify(_alertCounts));
+  fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:detectAndInsertAlerts',message:'alerts fired this cycle',data:_alertCounts,hypothesisId:'A',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 }
 
 // Main scrape function
@@ -619,6 +656,12 @@ async function scrape() {
     await updateEliminationStatus();
     await updateEliminationByCSVAbbrev();
     await recomputeTotals();
+
+    // #region agent log — Hypothesis E: who still has is_playing_now=TRUE after scrape?
+    const { rows: _playingNow } = await pool.query(`SELECT p.name, p.ncaa_team, ft.display_name FROM players p JOIN fantasy_teams ft ON ft.owner = p.owner WHERE p.is_playing_now = TRUE`);
+    console.log('[DEBUG][HypE] players with is_playing_now=TRUE after scrape:', JSON.stringify(_playingNow));
+    fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:scrape:postRecompute',message:'is_playing_now after scrape',data:{players:_playingNow},hypothesisId:'E',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // Detect and store alerts based on what changed
     await detectAndInsertAlerts(beforeState);
