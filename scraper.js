@@ -157,12 +157,20 @@ const DATE_ROUND_MAP = {
   '2026-04-07': 6,                    // Championship
 };
 
-// Parse round number from ESPN event data
+// Parse round number from ESPN event data.
+// DATE_ROUND_MAP is checked FIRST — it is authoritative and immune to ESPN
+// embedding "Championship" in generic tournament-title text for every round.
+// Text-based matching is kept only as a fallback for unrecognised dates.
 function getRoundNum(event) {
   try {
-    const allTexts = [];
+    // Primary: date-based lookup (hardcoded, always correct for this tournament)
+    const gameDate = event.date ? toEasternDateStr(new Date(event.date)) : null;
+    if (gameDate && DATE_ROUND_MAP[gameDate] !== undefined) {
+      return DATE_ROUND_MAP[gameDate];
+    }
 
-    // Collect all note/headline texts
+    // Secondary: text-based detection from ESPN event notes
+    const allTexts = [];
     for (const note of (event.notes || [])) {
       if (note.headline) allTexts.push(note.headline);
     }
@@ -171,14 +179,9 @@ function getRoundNum(event) {
       if (note.headline) allTexts.push(note.headline);
     }
 
-    // Check each text against label map — but skip a match if the ONLY
-    // reason it matched was a generic tournament-name substring like
-    // "Championship" appearing in "NCAA Championship - First Four"
     for (const text of allTexts) {
       for (const [label, num] of Object.entries(ROUND_LABEL_MAP)) {
         if (text.includes(label)) {
-          // If we matched 'Championship' but the text also contains a
-          // more specific early-round label, skip this match and keep looking
           if (label === 'Championship' && (
             text.includes('First Four') || text.includes('Opening Round') ||
             text.includes('First Round') || text.includes('Round of 64') ||
@@ -187,12 +190,6 @@ function getRoundNum(event) {
           return num;
         }
       }
-    }
-
-    // Fallback: infer from game date
-    const gameDate = event.date ? toEasternDateStr(new Date(event.date)) : null;
-    if (gameDate && DATE_ROUND_MAP[gameDate] !== undefined) {
-      return DATE_ROUND_MAP[gameDate];
     }
 
     return null;

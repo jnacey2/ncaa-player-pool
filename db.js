@@ -125,6 +125,56 @@ async function initSchema() {
     WHERE blacked_out = TRUE
     AND player_id IN (SELECT id FROM players WHERE is_eliminated = FALSE)
   `);
+
+  // Fix scores stored in wrong round due to ESPN "Championship" title matching.
+  // Mar 20-21 = First Round (1), Mar 22-23 = Second Round (2), etc.
+  // Any scores/game records written to round 6 on these dates are misassigned.
+  await pool.query(`
+    UPDATE games SET round_num = 1
+    WHERE round_num = 6 AND game_date IN ('2026-03-20'::date, '2026-03-21'::date);
+  `);
+  await pool.query(`
+    UPDATE games SET round_num = 2
+    WHERE round_num = 6 AND game_date IN ('2026-03-22'::date, '2026-03-23'::date);
+  `);
+  await pool.query(`
+    UPDATE games SET round_num = 3
+    WHERE round_num = 6 AND game_date IN ('2026-03-27'::date, '2026-03-28'::date);
+  `);
+  await pool.query(`
+    UPDATE games SET round_num = 4
+    WHERE round_num = 6 AND game_date IN ('2026-03-29'::date, '2026-03-30'::date);
+  `);
+  await pool.query(`
+    UPDATE games SET round_num = 5
+    WHERE round_num = 6 AND game_date = '2026-04-05'::date;
+  `);
+
+  // Move any player_round_scores that were written to round 6 but belong to
+  // earlier rounds. We do this by copying pts to the correct round and clearing
+  // the bad round-6 entry, for players whose team played on each date.
+  // The next scrape will re-write the correct values automatically, so this
+  // just ensures a clean state for the round columns in the UI.
+  await pool.query(`
+    UPDATE player_round_scores AS dest
+    SET pts = src.pts, blacked_out = FALSE
+    FROM player_round_scores AS src
+    JOIN players p ON p.id = src.player_id
+    WHERE src.round_num = 6
+      AND src.pts IS NOT NULL
+      AND dest.player_id = src.player_id
+      AND dest.round_num = 1
+      AND dest.pts IS NULL
+      AND p.is_eliminated = FALSE;
+  `);
+  await pool.query(`
+    UPDATE player_round_scores SET pts = NULL
+    WHERE round_num = 6 AND pts IS NOT NULL
+    AND player_id IN (
+      SELECT player_id FROM player_round_scores
+      WHERE round_num = 1 AND pts IS NOT NULL
+    );
+  `);
   // Fix play-in scores incorrectly stored as round 6 due to ESPN label matching bug.
   // Strategy: for any player who has pts in round_num=6 but the Championship
   // hasn't happened yet (Apr 7), copy those pts into their round_num=0 row,
