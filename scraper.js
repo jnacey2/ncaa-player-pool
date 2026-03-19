@@ -343,12 +343,6 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex) {
         );
 
         for (const { id: playerId } of allMatching) {
-          // #region agent log — Hyp D/E: log every DB write for pool players
-          if (/thornton|horne|whitlock/i.test(player.name)) {
-            console.log(`[DEBUG] WRITE player="${player.name}" playerId=${playerId} roundNum=${roundNum} pts=${pts} gameStatus=${gameStatus}`);
-            fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:writeScore',message:'writing score',data:{playerName:player.name,playerId,roundNum,pts,gameStatus},timestamp:Date.now(),hypothesisId:'D-E'})}).catch(()=>{});
-          }
-          // #endregion
           await pool.query(
             `INSERT INTO player_round_scores (player_id, round_num, pts, blacked_out)
              VALUES ($1, $2, $3, FALSE)
