@@ -341,24 +341,79 @@ async function processBoxScore(boxScore, roundNum, gameStatus) {
         // Only update if game is live or final (not pre-game)
         if (gameStatus === 'pre') continue;
 
-        await pool.query(
-          `INSERT INTO player_round_scores (player_id, round_num, pts, blacked_out)
-           VALUES ($1, $2, $3, FALSE)
-           ON CONFLICT (player_id, round_num) DO UPDATE SET
-             pts = EXCLUDED.pts,
-             blacked_out = FALSE`,
-          [player.id, roundNum, pts]
+        // Fix D: find ALL players with this name — the same player can appear
+        // on multiple fantasy teams (e.g. Graham Ike on Kunkel AND Gross)
+        const { rows: allMatching } = await pool.query(
+          `SELECT id FROM players WHERE LOWER(name) = LOWER($1)`,
+          [player.name]
         );
 
-        // Mark player as currently playing if game is live
-        await pool.query(
-          `UPDATE players SET is_playing_now = $1 WHERE id = $2`,
-          [gameStatus === 'live', player.id]
-        );
+        for (const { id: playerId } of allMatching) {
+          await pool.query(
+            `INSERT INTO player_round_scores (player_id, round_num, pts, blacked_out)
+             VALUES ($1, $2, $3, FALSE)
+             ON CONFLICT (player_id, round_num) DO UPDATE SET
+               pts = EXCLUDED.pts,
+               blacked_out = FALSE`,
+            [playerId, roundNum, pts]
+          );
+
+          // Mark player as currently playing if game is live
+          await pool.query(
+            `UPDATE players SET is_playing_now = $1 WHERE id = $2`,
+            [gameStatus === 'live', playerId]
+          );
+        }
       }
     }
   }
 }
+
+// Map ESPN team abbreviations → our CSV ncaa_team values
+// ESPN uses different abbreviations than our Fantrax CSV
+const ESPN_TO_CSV_ABBREV = {
+  'ARIZ': 'Ariz', 'AZ': 'Ariz',
+  'ARK': 'Ark',
+  'ALA': 'Bama', 'BAMA': 'Bama',
+  'BYU': 'BYU',
+  'DUKE': 'Duke',
+  'FLA': 'Fla', 'UF': 'Fla',
+  'GONZ': 'Gonz',
+  'HOU': 'Hou',
+  'IAST': 'IaSt', 'IASU': 'IaSt',
+  'ILL': 'Ill', 'ILLN': 'Ill',
+  'IOWA': 'Iowa',
+  'KU': 'Kan', 'KAN': 'Kan',
+  'UK': 'KY', 'KENT': 'KY',
+  'LEH': 'Leh',
+  'LOU': 'Lou', 'LOUY': 'Lou',
+  'MIA': 'Mia-FL', 'MIAF': 'Mia-FL',
+  'MICH': 'Mich', 'UMICH': 'Mich',
+  'MSU': 'MSU',
+  'NEB': 'Nebras', 'NEBR': 'Nebras',
+  'OHST': 'OhSt', 'OSU': 'OhSt',
+  'PUR': 'Pur',
+  'SCU': 'SCla', 'SCLA': 'SCla',
+  'SMU': 'SMU',
+  'USF': 'SoFL',
+  'SJU': 'StJon', 'STJN': 'StJon',
+  'SLU': 'StLou',
+  'SMC': 'StMar', 'STMA': 'StMar',
+  'TENN': 'Tenn', 'UTN': 'Tenn',
+  'TEX': 'Tex', 'UT': 'Tex',
+  'TTU': 'TxTch', 'TXSO': 'TxTch',
+  'UCLA': 'UCLA',
+  'CONN': 'UConn', 'UCON': 'UConn',
+  'UGA': 'UGA',
+  'UNC': 'UNC',
+  'USU': 'UtSt', 'UTST': 'UtSt',
+  'UVA': 'UVA', 'VIRG': 'UVA',
+  'VCU': 'VCU',
+  'VAN': 'Vand', 'VAND': 'Vand',
+  'WISC': 'Wisc', 'WIS': 'Wisc',
+  'PVAM': 'PVAM', 'PV': 'PVAM',
+  'AKR': 'Akr',
+};
 
 // After scraping all games, black out future rounds for eliminated players
 async function updateEliminationStatus() {
@@ -370,10 +425,13 @@ async function updateEliminationStatus() {
   for (const { team_abbrev, eliminated_in_round } of elimTeams) {
     if (!eliminated_in_round) continue;
 
-    // Find players on this team
+    // Resolve ESPN abbreviation to our CSV ncaa_team value
+    const csvAbbrev = ESPN_TO_CSV_ABBREV[team_abbrev.toUpperCase()] || team_abbrev;
+
+    // Find players on this team — try both the CSV abbrev and original ESPN abbrev
     const { rows: affectedPlayers } = await pool.query(
-      `SELECT id FROM players WHERE LOWER(ncaa_team) = $1`,
-      [team_abbrev.toLowerCase()]
+      `SELECT id FROM players WHERE LOWER(ncaa_team) = LOWER($1) OR LOWER(ncaa_team) = LOWER($2)`,
+      [csvAbbrev, team_abbrev]
     );
 
     for (const { id: playerId } of affectedPlayers) {
@@ -625,6 +683,10 @@ async function detectAndInsertAlerts(before, displayNames) {
 async function scrape() {
   console.log('[scraper] Starting scrape at', new Date().toISOString());
   try {
+    // Fix E: bulk-reset is_playing_now at start of every scrape cycle so players
+    // whose game ended but whose name didn't fuzzy-match don't stay green forever
+    await pool.query(`UPDATE players SET is_playing_now = FALSE WHERE is_playing_now = TRUE`);
+
     // Snapshot state before scrape for alert diffing
     const beforeState = await snapshotBeforeScrape();
 
