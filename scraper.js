@@ -318,13 +318,7 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
   for (const teamData of teams) {
     // Resolve which CSV ncaa_team this box score section belongs to.
     const bsAbbr = (teamData.team?.abbreviation || '').toUpperCase();
-    const bsDisplayName = (teamData.team?.displayName || teamData.team?.name || '').toLowerCase();
     const csvTeam = espnToCsv[bsAbbr] || ESPN_TO_CSV_ABBREV[bsAbbr] || null;
-
-    // #region agent log — Hyp A/D: log team resolution for each box score section
-    console.log(`[DEBUG] boxScore section: abbr="${bsAbbr}" display="${bsDisplayName}" csvTeam="${csvTeam}"`);
-    fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:processBoxScore:team',message:'box score section team',data:{bsAbbr,bsDisplayName,csvTeam,roundNum},timestamp:Date.now(),hypothesisId:'A-D'})}).catch(()=>{});
-    // #endregion
 
     const statistics = teamData.statistics || [];
     for (const statGroup of statistics) {
@@ -350,23 +344,9 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
 
         // Fuzzy-match to our pool
         const results = fuse.search(espnName);
-        // #region agent log — Hyp C: log ESPN names that don't match anyone in pool
-        if (/ngongba/i.test(espnName)) {
-          console.log(`[DEBUG] FUSE search "${espnName}" → ${results.length} results, best score=${results[0]?.score}`);
-          fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:fuse',message:'fuse search',data:{espnName,resultCount:results.length,bestScore:results[0]?.score,bestMatch:results[0]?.item?.name},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-        }
-        // #endregion
         if (!results.length || results[0].score > 0.3) continue;
 
         const player = results[0].item;
-
-        // #region agent log — Hyp B/C: log every pool player match with team validation result
-        const teamMismatch = csvTeam && player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase();
-        if (/isaiah brown|malik thomas|ngongba/i.test(espnName) || /isaiah brown|malik thomas|ngongba/i.test(player.name)) {
-          console.log(`[DEBUG] MATCH espn="${espnName}" player="${player.name}" team="${player.ncaa_team}" csvTeam="${csvTeam}" mismatch=${teamMismatch} pts=${pts}`);
-          fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:processBoxScore:match',message:'player match',data:{espnName,playerName:player.name,playerTeam:player.ncaa_team,csvTeam,teamMismatch,pts,roundNum},timestamp:Date.now(),hypothesisId:'B-C'})}).catch(()=>{});
-        }
-        // #endregion
 
         // Team validation: reject if player's team doesn't match the box score section
         if (csvTeam && player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
