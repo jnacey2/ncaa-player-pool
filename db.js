@@ -121,10 +121,11 @@ async function initSchema() {
   // Fix games table round_num using the authoritative date-based mapping.
   // Previous code used text-based detection which matched "Championship" from
   // ESPN's generic tournament title, misassigning all rounds to round 6.
+  // First Four = March 18 only. First Round starts March 19.
   await pool.query(`
-    UPDATE games SET round_num = 0 WHERE game_date IN ('2026-03-18'::date,'2026-03-19'::date) AND round_num != 0;
-    UPDATE games SET round_num = 1 WHERE game_date IN ('2026-03-20'::date,'2026-03-21'::date) AND round_num != 1;
-    UPDATE games SET round_num = 2 WHERE game_date IN ('2026-03-22'::date,'2026-03-23'::date) AND round_num != 2;
+    UPDATE games SET round_num = 0 WHERE game_date = '2026-03-18'::date AND round_num != 0;
+    UPDATE games SET round_num = 1 WHERE game_date IN ('2026-03-19'::date,'2026-03-20'::date) AND round_num != 1;
+    UPDATE games SET round_num = 2 WHERE game_date IN ('2026-03-21'::date,'2026-03-22'::date) AND round_num != 2;
     UPDATE games SET round_num = 3 WHERE game_date IN ('2026-03-27'::date,'2026-03-28'::date) AND round_num != 3;
     UPDATE games SET round_num = 4 WHERE game_date IN ('2026-03-29'::date,'2026-03-30'::date) AND round_num != 4;
     UPDATE games SET round_num = 5 WHERE game_date = '2026-04-05'::date AND round_num != 5;

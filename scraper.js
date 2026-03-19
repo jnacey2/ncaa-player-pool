@@ -55,10 +55,11 @@ function normalizeTeamAbbrev(abbrev) {
 }
 
 // All known 2026 NCAA tournament dates (First Four through Championship)
+// First Four = March 18 only. First Round starts March 19.
 const TOURNAMENT_DATES = [
-  '20260318', '20260319', // First Four
-  '20260320', '20260321', // First Round
-  '20260322', '20260323', // Second Round
+  '20260318',             // First Four (2 games)
+  '20260319', '20260320', // First Round
+  '20260321', '20260322', // Second Round
   '20260327', '20260328', // Sweet 16
   '20260329', '20260330', // Elite Eight
   '20260405',             // Final Four
@@ -147,10 +148,11 @@ function espnStatusToGameStatus(espnStatus) {
 }
 
 // Fallback: infer round from game date when ESPN text labels are ambiguous
+// First Four was March 18 only (2 games). First Round starts March 19.
 const DATE_ROUND_MAP = {
-  '2026-03-18': 0, '2026-03-19': 0,  // First Four
-  '2026-03-20': 1, '2026-03-21': 1,  // First Round
-  '2026-03-22': 2, '2026-03-23': 2,  // Second Round
+  '2026-03-18': 0,                    // First Four (2 games, March 18 ET only)
+  '2026-03-19': 1, '2026-03-20': 1,  // First Round
+  '2026-03-21': 2, '2026-03-22': 2,  // Second Round
   '2026-03-27': 3, '2026-03-28': 3,  // Sweet 16
   '2026-03-29': 4, '2026-03-30': 4,  // Elite Eight
   '2026-04-05': 5,                    // Final Four
@@ -632,12 +634,6 @@ async function scrape() {
     const gameRoundMap = {};
     gameRoundRows.forEach(g => { gameRoundMap[g.espn_game_id] = g.round_num; });
 
-    // #region agent log — Hyp A/B/C: log gameRoundMap sample and OhSt game lookup
-    const ohstEntry = Object.entries(gameRoundMap).find(([id, r]) => r === 1 || r === 0);
-    console.log('[DEBUG] gameRoundMap size:', Object.keys(gameRoundMap).length, '| sample R0/R1 entry:', JSON.stringify(ohstEntry));
-    fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:gameRoundMap',message:'gameRoundMap built',data:{size:Object.keys(gameRoundMap).length,r0count:Object.values(gameRoundMap).filter(v=>v===0).length,r1count:Object.values(gameRoundMap).filter(v=>v===1).length,r6count:Object.values(gameRoundMap).filter(v=>v===6).length},timestamp:Date.now(),hypothesisId:'A-B-C'})}).catch(()=>{});
-    // #endregion
-
     // Build player index once per scrape cycle (Fix 2: avoids N rebuilds for N live games)
     const playerIndex = await buildPlayerIndex();
 
@@ -649,12 +645,6 @@ async function scrape() {
       if (gameStatus === 'pre') continue;
 
       const roundNum = gameRoundMap[event.id];
-
-      // #region agent log — Hyp A/B: log every non-pre game with its resolved roundNum
-      console.log('[DEBUG] event', event.id, 'status:', gameStatus, 'roundNum from map:', roundNum, 'event.date:', event.date);
-      fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:eventLoop',message:'processing event',data:{eventId:event.id,gameStatus,roundNum,eventDate:event.date},timestamp:Date.now(),hypothesisId:'A-B'})}).catch(()=>{});
-      // #endregion
-
       if (roundNum === null || roundNum === undefined || roundNum < 0) continue;
 
       const boxScore = await fetchBoxScore(event.id);
