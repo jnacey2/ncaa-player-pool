@@ -102,8 +102,10 @@ Return ONLY valid JSON with no markdown fences:
     });
 
     const raw = message.content[0]?.text || '';
-    const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
-    const mapping = JSON.parse(cleaned);
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('No JSON object found in Claude response');
+    const mapping = JSON.parse(raw.slice(start, end + 1));
 
     let saved = 0;
     for (const [csvAbbrev, espnData] of Object.entries(mapping)) {
@@ -189,8 +191,10 @@ Return ONLY valid JSON with no markdown. Include ONLY players where you are conf
     });
 
     const raw = message.content[0]?.text || '';
-    const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
-    const corrections = JSON.parse(cleaned);
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('No JSON object found in Claude response');
+    const corrections = JSON.parse(raw.slice(start, end + 1));
 
     let updated = 0;
     for (const [fantraxName, espnName] of Object.entries(corrections)) {
@@ -268,8 +272,11 @@ Only include players you are CONFIDENT have a mismatch. If unsure, omit them. Em
   });
 
   const raw = message.content[0]?.text || '';
-  const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
-  const { format_fixes = {}, nickname_fixes = {} } = JSON.parse(cleaned);
+  // Extract the outermost JSON object regardless of surrounding text or markdown
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('No JSON object found in Claude response');
+  const { format_fixes = {}, nickname_fixes = {} } = JSON.parse(raw.slice(start, end + 1));
 
   const changes = { format_fixes: [], nickname_fixes: [] };
 

@@ -127,9 +127,11 @@ async function generateCommentary() {
 
     const raw = message.content[0]?.text || '';
 
-    // Strip any accidental markdown fences
-    const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
-    const parsed = JSON.parse(cleaned);
+    // Extract the outermost JSON object regardless of surrounding text or markdown
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) throw new Error('No JSON object found in Claude response');
+    const parsed = JSON.parse(raw.slice(start, end + 1));
 
     if (!parsed.narrative || !parsed.team_blurbs) {
       throw new Error('Claude response missing narrative or team_blurbs');
