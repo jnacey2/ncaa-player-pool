@@ -118,92 +118,35 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE team_mappings ADD COLUMN IF NOT EXISTS confirmed BOOLEAN DEFAULT FALSE;
   `);
-  // Restore ALL blacked-out cells for non-eliminated players.
-  // Only truly eliminated players should ever have black cells.
+  // Fix games table round_num using the authoritative date-based mapping.
+  // Previous code used text-based detection which matched "Championship" from
+  // ESPN's generic tournament title, misassigning all rounds to round 6.
   await pool.query(`
-    UPDATE player_round_scores SET blacked_out = FALSE, pts = NULL
+    UPDATE games SET round_num = 0 WHERE game_date IN ('2026-03-18'::date,'2026-03-19'::date) AND round_num != 0;
+    UPDATE games SET round_num = 1 WHERE game_date IN ('2026-03-20'::date,'2026-03-21'::date) AND round_num != 1;
+    UPDATE games SET round_num = 2 WHERE game_date IN ('2026-03-22'::date,'2026-03-23'::date) AND round_num != 2;
+    UPDATE games SET round_num = 3 WHERE game_date IN ('2026-03-27'::date,'2026-03-28'::date) AND round_num != 3;
+    UPDATE games SET round_num = 4 WHERE game_date IN ('2026-03-29'::date,'2026-03-30'::date) AND round_num != 4;
+    UPDATE games SET round_num = 5 WHERE game_date = '2026-04-05'::date AND round_num != 5;
+    UPDATE games SET round_num = 6 WHERE game_date = '2026-04-07'::date AND round_num != 6;
+  `);
+
+  // Clean slate for player_round_scores: wipe all pts so the scraper can
+  // repopulate them correctly. The scraper re-fetches ALL final game box scores
+  // on every cycle, so no data is permanently lost. This eliminates corrupted
+  // data from previous round-detection bugs (round 6 used as a catch-all,
+  // play-in migration copying those pts to round 0, etc.).
+  // Preserve blacked_out state for truly eliminated players.
+  await pool.query(`
+    UPDATE player_round_scores SET pts = NULL
+    WHERE pts IS NOT NULL
+    AND player_id IN (SELECT id FROM players WHERE is_eliminated = FALSE);
+  `);
+  // Also restore any blacked-out cells for non-eliminated players
+  await pool.query(`
+    UPDATE player_round_scores SET blacked_out = FALSE
     WHERE blacked_out = TRUE
-    AND player_id IN (SELECT id FROM players WHERE is_eliminated = FALSE)
-  `);
-
-  // Fix scores stored in wrong round due to ESPN "Championship" title matching.
-  // Mar 20-21 = First Round (1), Mar 22-23 = Second Round (2), etc.
-  // Any scores/game records written to round 6 on these dates are misassigned.
-  await pool.query(`
-    UPDATE games SET round_num = 1
-    WHERE round_num = 6 AND game_date IN ('2026-03-20'::date, '2026-03-21'::date);
-  `);
-  await pool.query(`
-    UPDATE games SET round_num = 2
-    WHERE round_num = 6 AND game_date IN ('2026-03-22'::date, '2026-03-23'::date);
-  `);
-  await pool.query(`
-    UPDATE games SET round_num = 3
-    WHERE round_num = 6 AND game_date IN ('2026-03-27'::date, '2026-03-28'::date);
-  `);
-  await pool.query(`
-    UPDATE games SET round_num = 4
-    WHERE round_num = 6 AND game_date IN ('2026-03-29'::date, '2026-03-30'::date);
-  `);
-  await pool.query(`
-    UPDATE games SET round_num = 5
-    WHERE round_num = 6 AND game_date = '2026-04-05'::date;
-  `);
-
-  // Move any player_round_scores that were written to round 6 but belong to
-  // earlier rounds. We do this by copying pts to the correct round and clearing
-  // the bad round-6 entry, for players whose team played on each date.
-  // The next scrape will re-write the correct values automatically, so this
-  // just ensures a clean state for the round columns in the UI.
-  await pool.query(`
-    UPDATE player_round_scores AS dest
-    SET pts = src.pts, blacked_out = FALSE
-    FROM player_round_scores AS src
-    JOIN players p ON p.id = src.player_id
-    WHERE src.round_num = 6
-      AND src.pts IS NOT NULL
-      AND dest.player_id = src.player_id
-      AND dest.round_num = 1
-      AND dest.pts IS NULL
-      AND p.is_eliminated = FALSE;
-  `);
-  await pool.query(`
-    UPDATE player_round_scores SET pts = NULL
-    WHERE round_num = 6 AND pts IS NOT NULL
-    AND player_id IN (
-      SELECT player_id FROM player_round_scores
-      WHERE round_num = 1 AND pts IS NOT NULL
-    );
-  `);
-  // Fix play-in scores incorrectly stored as round 6 due to ESPN label matching bug.
-  // Strategy: for any player who has pts in round_num=6 but the Championship
-  // hasn't happened yet (Apr 7), copy those pts into their round_num=0 row,
-  // then clear the round_num=6 pts.
-  // We use UPDATE not INSERT because seed pre-creates all round rows with pts=NULL.
-  await pool.query(`
-    UPDATE player_round_scores AS dest
-    SET pts = src.pts, blacked_out = FALSE
-    FROM player_round_scores AS src
-    WHERE src.player_id = dest.player_id
-      AND src.round_num = 6
-      AND src.pts IS NOT NULL
-      AND dest.round_num = 0
-      AND dest.pts IS NULL;
-  `);
-  // Clear the incorrectly stored round_num=6 pts (Championship is Apr 7 — none yet)
-  await pool.query(`
-    UPDATE player_round_scores SET pts = NULL
-    WHERE round_num = 6 AND pts IS NOT NULL
-      AND player_id IN (
-        SELECT player_id FROM player_round_scores
-        WHERE round_num = 0 AND pts IS NOT NULL
-      );
-  `);
-  // Fix games table round_num for Mar 18-19 games misidentified as Championship
-  await pool.query(`
-    UPDATE games SET round_num = 0
-    WHERE round_num = 6
-      AND game_date IN ('2026-03-18'::date, '2026-03-19'::date);
+    AND player_id IN (SELECT id FROM players WHERE is_eliminated = FALSE);
   `);
   // Widen round_num check to include 0 (Play-In / First Four games)
   await pool.query(`
