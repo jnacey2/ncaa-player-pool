@@ -575,10 +575,12 @@ async function cleanupFalseEliminations() {
       `UPDATE players SET is_eliminated = FALSE WHERE id = ANY($1)`,
       [wrongIds]
     );
-    // Un-blackout ALL rounds for falsely eliminated players (including Play-In)
+    // Wipe ALL round scores for falsely eliminated players — including any stale
+    // pts that were never blacked_out (written by old scrape runs before cleanup).
+    // The scraper will repopulate from ESPN on the next cycle.
     await pool.query(
       `UPDATE player_round_scores SET blacked_out = FALSE, pts = NULL
-       WHERE blacked_out = TRUE AND player_id = ANY($1)`,
+       WHERE player_id = ANY($1)`,
       [wrongIds]
     );
     console.log(`[scraper] Cleared ${wrongIds.length} false eliminations`);
