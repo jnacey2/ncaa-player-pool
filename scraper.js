@@ -349,7 +349,19 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
         const player = results[0].item;
 
         // Team validation: reject if player's team doesn't match the box score section
-        if (csvTeam && player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
+        if (csvTeam && player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) {
+          // #region agent log
+          if (/isaiah.?brown/i.test(espnName) || /isaiah.?brown/i.test(player.name)) {
+            console.log(`[DEBUG] REJECTED espn="${espnName}" player="${player.name}" bsAbbr="${bsAbbr}" csvTeam="${csvTeam}" playerTeam="${player.ncaa_team}" pts=${pts}`);
+          }
+          // #endregion
+          continue;
+        }
+        // #region agent log — log any match that PASSES team validation for Isaiah Brown
+        if (/isaiah.?brown/i.test(espnName) || /isaiah.?brown/i.test(player.name)) {
+          console.log(`[DEBUG] ACCEPTED espn="${espnName}" player="${player.name}" bsAbbr="${bsAbbr}" csvTeam="${csvTeam}" playerTeam="${player.ncaa_team}" pts=${pts}`);
+        }
+        // #endregion
 
         // Only update if game is live or final (not pre-game)
         if (gameStatus === 'pre') continue;
@@ -628,6 +640,18 @@ async function recomputeTotals() {
 // Main scrape function
 async function scrape() {
   console.log('[scraper] Starting scrape at', new Date().toISOString());
+  // #region agent log — check Isaiah Brown (Fla) current DB state
+  try {
+    const { rows } = await pool.query(`
+      SELECT p.name, p.ncaa_team, p.is_eliminated, p.total_pts,
+             prs.round_num, prs.pts AS round_pts
+      FROM players p
+      LEFT JOIN player_round_scores prs ON prs.player_id = p.id AND prs.pts IS NOT NULL
+      WHERE LOWER(p.name) = 'isaiah brown' AND LOWER(p.ncaa_team) = 'fla'
+      ORDER BY prs.round_num`);
+    console.log('[DEBUG] Isaiah Brown (Fla) DB state:', JSON.stringify(rows));
+  } catch(e) {}
+  // #endregion
   try {
     // Bulk-reset is_playing_now at start of every scrape cycle so players
     // whose game ended but whose name didn't fuzzy-match don't stay green forever
