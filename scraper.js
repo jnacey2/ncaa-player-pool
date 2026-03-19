@@ -525,6 +525,61 @@ async function updateEliminationByCSVAbbrev() {
   }
 }
 
+// Un-eliminate any player whose team is NOT confirmed eliminated in bracket_slots.
+// Guards against the fuzzy-matching in updateEliminationByCSVAbbrev producing
+// false positives that mark players as eliminated before they've even played.
+async function cleanupFalseEliminations() {
+  // Collect the CSV abbrevs of legitimately eliminated teams using:
+  // 1. Exact case-insensitive abbrev match between bracket_slots and players
+  // 2. LLM-learned team_mappings (espn_abbrev → csv_abbrev)
+  const { rows: legitElim } = await pool.query(`
+    SELECT LOWER(p.ncaa_team) AS ncaa_team
+    FROM players p
+    WHERE (
+      -- Direct case-insensitive abbrev match
+      EXISTS (
+        SELECT 1 FROM bracket_slots bs
+        WHERE LOWER(bs.team_abbrev) = LOWER(p.ncaa_team)
+          AND bs.is_eliminated = TRUE
+          AND bs.eliminated_in_round IS NOT NULL
+      )
+      OR
+      -- LLM-learned mapping match
+      EXISTS (
+        SELECT 1 FROM team_mappings tm
+        JOIN bracket_slots bs ON UPPER(tm.espn_abbrev) = UPPER(bs.team_abbrev)
+        WHERE tm.csv_abbrev = p.ncaa_team
+          AND bs.is_eliminated = TRUE
+          AND bs.eliminated_in_round IS NOT NULL
+      )
+    )
+  `);
+
+  const legitSet = new Set(legitElim.map(r => r.ncaa_team));
+
+  // Find players marked eliminated whose team is NOT in the legitimate set
+  const { rows: wronglyElim } = await pool.query(`
+    SELECT id, name, ncaa_team FROM players WHERE is_eliminated = TRUE
+  `);
+  const wrongIds = wronglyElim
+    .filter(p => !legitSet.has(p.ncaa_team.toLowerCase()))
+    .map(p => p.id);
+
+  if (wrongIds.length > 0) {
+    await pool.query(
+      `UPDATE players SET is_eliminated = FALSE WHERE id = ANY($1)`,
+      [wrongIds]
+    );
+    // Un-blackout their future round scores (keep round 0 blackouts for non-First-Four teams)
+    await pool.query(
+      `UPDATE player_round_scores SET blacked_out = FALSE, pts = NULL
+       WHERE round_num > 0 AND blacked_out = TRUE AND player_id = ANY($1)`,
+      [wrongIds]
+    );
+    console.log(`[scraper] Cleared ${wrongIds.length} false eliminations`);
+  }
+}
+
 // Recompute player total_pts and fantasy_team total_pts + players_remaining
 async function recomputeTotals() {
   // Update each player's total_pts from round scores
@@ -587,7 +642,7 @@ async function scrape() {
     }
 
     await updateEliminationStatus();
-    await updateEliminationByCSVAbbrev();
+    await cleanupFalseEliminations();
     await recomputeTotals();
 
     // Fix 1: black out round 0 for any player who never scored there, once all
