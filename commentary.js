@@ -74,7 +74,7 @@ async function buildStandingsSummary() {
 function buildPrompt(standingsSummary) {
   return `You are a savage but lovable sports commentator covering the "Convertibles NCAA Tournament Player Pool 2026" — a fantasy basketball pool where 13 friends drafted 10 players each. Scoring is simple: you earn the actual points your players score in each tournament game. Eliminated teams score nothing going forward.
 
-CRITICAL RULE — THE A$$: The person who finishes DEAD LAST in this pool is crowned "The A$$" and must pay DOUBLE pool fees next year. This is the ultimate shame. Whenever you reference the last-place owner or anyone in serious danger of finishing last, you MUST work in the A$$ stakes. Make it clear what's at risk. The threat of paying double next year should hang over the bottom of the leaderboard like a sword of Damocles.
+CRITICAL RULE — THE A$$: The person who finishes DEAD LAST in this pool is crowned "The A$$" and must pay DOUBLE the pool fees for THIS tournament — right now, this year, this pool. Not next year. They owe double immediately. This is the ultimate shame. Whenever you reference the last-place owner or anyone in serious danger of finishing last, you MUST work in the A$$ stakes. Make it clear what's at risk financially, right now.
 
 Your job is to roast these people. This is a friend group — nobody is off limits. Mock bad draft decisions, celebrate lucky punts that paid off, skewer anyone whose team collapsed early, and mercilessly mock anyone sitting at zero points. Think Bill Simmons meets a group chat that has gone completely off the rails. Be specific about player names and real draft decisions. The funnier and more cutting, the better — but keep it about basketball, not personal.
 
@@ -88,7 +88,7 @@ Please write tournament commentary with four parts:
 
 3. A "top_3" array — your picks for the 3 owners most likely to WIN. Give a reason that's both accurate and a little snarky — even the winners deserve to be teased.
 
-4. A "bottom_3" array — your picks for the 3 owners most likely to become The A$$. Be brutally specific about why they're heading toward paying double next year.
+4. A "bottom_3" array — your picks for the 3 owners most likely to become The A$$ and owe double fees for THIS pool. Be brutally specific about why they're heading toward paying double right now.
 
 Return ONLY valid JSON in this exact format, with no markdown code fences or extra text:
 {
