@@ -1,6 +1,5 @@
 require('dotenv').config();
 const Anthropic = require('@anthropic-ai/sdk');
-const cron = require('node-cron');
 const { pool } = require('./db');
 
 // All known 2026 NCAA tournament dates — only generate commentary on these days
@@ -159,13 +158,13 @@ function scheduleCommentary() {
   }
 
   // Run every 2 hours, but only on tournament days
-  cron.schedule('0 */2 * * *', () => {
+  setInterval(() => {
     if (isTournamentDay()) {
       generateCommentary();
     } else {
       console.log('[commentary] Not a tournament day — skipping scheduled generation');
     }
-  });
+  }, 2 * 60 * 60 * 1000);
 
   console.log('[commentary] Scheduler started — will generate every 2h on game days');
 
