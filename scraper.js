@@ -341,6 +341,12 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex) {
         );
 
         for (const { id: playerId } of allMatching) {
+          // #region agent log — Hyp D/E: log every DB write for pool players
+          if (/thornton|horne|whitlock/i.test(player.name)) {
+            console.log(`[DEBUG] WRITE player="${player.name}" playerId=${playerId} roundNum=${roundNum} pts=${pts} gameStatus=${gameStatus}`);
+            fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:writeScore',message:'writing score',data:{playerName:player.name,playerId,roundNum,pts,gameStatus},timestamp:Date.now(),hypothesisId:'D-E'})}).catch(()=>{});
+          }
+          // #endregion
           await pool.query(
             `INSERT INTO player_round_scores (player_id, round_num, pts, blacked_out)
              VALUES ($1, $2, $3, FALSE)
@@ -626,6 +632,12 @@ async function scrape() {
     const gameRoundMap = {};
     gameRoundRows.forEach(g => { gameRoundMap[g.espn_game_id] = g.round_num; });
 
+    // #region agent log — Hyp A/B/C: log gameRoundMap sample and OhSt game lookup
+    const ohstEntry = Object.entries(gameRoundMap).find(([id, r]) => r === 1 || r === 0);
+    console.log('[DEBUG] gameRoundMap size:', Object.keys(gameRoundMap).length, '| sample R0/R1 entry:', JSON.stringify(ohstEntry));
+    fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:gameRoundMap',message:'gameRoundMap built',data:{size:Object.keys(gameRoundMap).length,r0count:Object.values(gameRoundMap).filter(v=>v===0).length,r1count:Object.values(gameRoundMap).filter(v=>v===1).length,r6count:Object.values(gameRoundMap).filter(v=>v===6).length},timestamp:Date.now(),hypothesisId:'A-B-C'})}).catch(()=>{});
+    // #endregion
+
     // Build player index once per scrape cycle (Fix 2: avoids N rebuilds for N live games)
     const playerIndex = await buildPlayerIndex();
 
@@ -637,6 +649,12 @@ async function scrape() {
       if (gameStatus === 'pre') continue;
 
       const roundNum = gameRoundMap[event.id];
+
+      // #region agent log — Hyp A/B: log every non-pre game with its resolved roundNum
+      console.log('[DEBUG] event', event.id, 'status:', gameStatus, 'roundNum from map:', roundNum, 'event.date:', event.date);
+      fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:eventLoop',message:'processing event',data:{eventId:event.id,gameStatus,roundNum,eventDate:event.date},timestamp:Date.now(),hypothesisId:'A-B'})}).catch(()=>{});
+      // #endregion
+
       if (roundNum === null || roundNum === undefined || roundNum < 0) continue;
 
       const boxScore = await fetchBoxScore(event.id);
