@@ -423,7 +423,8 @@ async function updateEliminationStatus() {
   );
 
   for (const { team_abbrev, eliminated_in_round } of elimTeams) {
-    if (!eliminated_in_round) continue;
+    // Use == null to catch both null and undefined, but NOT 0 (round 0 = First Four)
+    if (eliminated_in_round == null) continue;
 
     // Resolve ESPN abbreviation to our CSV ncaa_team value
     const csvAbbrev = ESPN_TO_CSV_ABBREV[team_abbrev.toUpperCase()] || team_abbrev;
@@ -501,7 +502,8 @@ async function updateEliminationByCSVAbbrev() {
     console.log(`[DEBUG][HypB] pool team "${ncaa_team}" → eliminated_in_round=${eliminated_in_round}, directMatch=${!!directMatch}`);
     // #endregion
 
-    if (!eliminated_in_round) continue;
+    // Use == null to catch both null and undefined, but NOT 0 (round 0 = First Four)
+    if (eliminated_in_round == null) continue;
 
     const { rows: affectedPlayers } = await pool.query(
       `SELECT id FROM players WHERE ncaa_team = $1`,
