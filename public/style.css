@@ -278,6 +278,29 @@ html, body {
   text-transform: uppercase;
   color: var(--gray);
   margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game-tv {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.05em;
+  background: rgba(201, 162, 39, 0.12);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.game-seed {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gray);
+  min-width: 14px;
+  text-align: right;
+  flex-shrink: 0;
+  margin-right: 4px;
 }
 
 .game-matchup {

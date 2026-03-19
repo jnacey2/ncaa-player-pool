@@ -478,18 +478,22 @@ function gameCard(g) {
     }
   }
 
+  const awaySeedStr = g.away_seed ? `<span class="game-seed">${g.away_seed}</span>` : '';
+  const homeSeedStr = g.home_seed ? `<span class="game-seed">${g.home_seed}</span>` : '';
+  const tvStr = g.tv_network ? `<span class="game-tv">${esc(g.tv_network)}</span>` : '';
+
   return `
     <div class="game-card ${g.status}${isExpanded ? ' expanded' : ''}"
          onclick="toggleGameExpand('${g.espn_game_id}', ${isLive})" style="cursor:${isLive ? 'default' : 'pointer'}">
       <div class="game-card-main">
-        ${roundLabel ? `<div class="game-round-label">${roundLabel}</div>` : ''}
+        ${roundLabel ? `<div class="game-round-label">${roundLabel}${tvStr}</div>` : ''}
         <div class="game-matchup">
           <div class="game-team-row ${awayWin ? 'winner' : ''}">
-            <span class="game-team-name">${esc(g.away_team)}</span>
+            ${awaySeedStr}<span class="game-team-name">${esc(g.away_team)}</span>
             <span class="game-score">${g.status !== 'pre' ? g.away_score : ''}</span>
           </div>
           <div class="game-team-row ${homeWin ? 'winner' : ''}">
-            <span class="game-team-name">${esc(g.home_team)}</span>
+            ${homeSeedStr}<span class="game-team-name">${esc(g.home_team)}</span>
             <span class="game-score">${g.status !== 'pre' ? g.home_score : ''}</span>
           </div>
         </div>

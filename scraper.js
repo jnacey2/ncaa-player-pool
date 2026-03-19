@@ -221,25 +221,36 @@ async function upsertGames(events) {
 
     const competitors = comp.competitors || [];
     let homeTeam = '', awayTeam = '', homeScore = 0, awayScore = 0;
+    let homeSeed = null, awaySeed = null;
 
     for (const c of competitors) {
       const name = c.team?.displayName || c.team?.name || '';
       const score = parseInt(c.score || 0, 10);
-      if (c.homeAway === 'home') { homeTeam = name; homeScore = score; }
-      else { awayTeam = name; awayScore = score; }
+      const seed = parseInt(c.curatedRank?.current || c.seed || 0, 10) || null;
+      if (c.homeAway === 'home') { homeTeam = name; homeScore = score; homeSeed = seed; }
+      else { awayTeam = name; awayScore = score; awaySeed = seed; }
     }
 
+    // Extract TV broadcast network (ESPN returns array of broadcast objects)
+    const broadcasts = comp.broadcasts || [];
+    const tvNetwork = broadcasts.length > 0
+      ? (broadcasts[0].names?.[0] || broadcasts[0].market?.type || null)
+      : null;
+
     await pool.query(
-      `INSERT INTO games (espn_game_id, round_num, home_team, away_team, home_score, away_score, status, tip_time, game_date, display_clock, period)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO games (espn_game_id, round_num, home_team, away_team, home_score, away_score, status, tip_time, game_date, display_clock, period, tv_network, home_seed, away_seed)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (espn_game_id) DO UPDATE SET
          round_num = EXCLUDED.round_num,
          home_score = EXCLUDED.home_score,
          away_score = EXCLUDED.away_score,
          status = EXCLUDED.status,
          display_clock = EXCLUDED.display_clock,
-         period = EXCLUDED.period`,
-      [espnGameId, roundNum, homeTeam, awayTeam, homeScore, awayScore, gameStatus, tipTime, gameDate, displayClock, period]
+         period = EXCLUDED.period,
+         tv_network = COALESCE(EXCLUDED.tv_network, games.tv_network),
+         home_seed = COALESCE(EXCLUDED.home_seed, games.home_seed),
+         away_seed = COALESCE(EXCLUDED.away_seed, games.away_seed)`,
+      [espnGameId, roundNum, homeTeam, awayTeam, homeScore, awayScore, gameStatus, tipTime, gameDate, displayClock, period, tvNetwork, homeSeed, awaySeed]
     );
   }
 }

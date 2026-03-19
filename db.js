@@ -118,6 +118,11 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE team_mappings ADD COLUMN IF NOT EXISTS confirmed BOOLEAN DEFAULT FALSE;
   `);
+  await pool.query(`
+    ALTER TABLE games ADD COLUMN IF NOT EXISTS tv_network VARCHAR(50);
+    ALTER TABLE games ADD COLUMN IF NOT EXISTS home_seed INTEGER;
+    ALTER TABLE games ADD COLUMN IF NOT EXISTS away_seed INTEGER;
+  `);
   // Fix games table round_num using the authoritative date-based mapping.
   // Previous code used text-based detection which matched "Championship" from
   // ESPN's generic tournament title, misassigning all rounds to round 6.

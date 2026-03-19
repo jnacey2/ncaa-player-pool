@@ -94,7 +94,7 @@ app.get('/api/games', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT espn_game_id, round_num, home_team, away_team,
               home_score, away_score, status, tip_time, game_date,
-              display_clock, period
+              display_clock, period, tv_network, home_seed, away_seed
        FROM games
        ORDER BY
          CASE status WHEN 'live' THEN 0 WHEN 'pre' THEN 1 ELSE 2 END,
