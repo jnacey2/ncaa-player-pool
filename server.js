@@ -5,7 +5,7 @@ const { pool, initSchema } = require('./db');
 const { seed } = require('./seed');
 const { startScheduler } = require('./scraper');
 const { generateCommentary, scheduleCommentary } = require('./commentary');
-const { resolveTeamMappings, getTeamMappings, resolvePlayerNames } = require('./mapping');
+const { resolveTeamMappings, getTeamMappings, resolvePlayerNames, refreshAllPlayerNames } = require('./mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -161,6 +161,18 @@ app.post('/api/commentary/regenerate', async (req, res) => {
     generateCommentary(); // fire and forget
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/mapping/refresh-names — full re-scan of all player names via Claude
+// Returns a summary of format fixes (espn_name only) and nickname fixes (name + CSV updated)
+app.post('/api/mapping/refresh-names', async (req, res) => {
+  try {
+    res.json({ ok: true, message: 'Player name refresh started — check server logs for results.' });
+    const changes = await refreshAllPlayerNames();
+    console.log('[server] Player name refresh done:', JSON.stringify(changes));
+  } catch (err) {
+    console.error('[server] Player name refresh error:', err.message);
   }
 });
 

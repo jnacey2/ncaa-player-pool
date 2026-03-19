@@ -1,4 +1,6 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
 const { pool } = require('./db');
 
@@ -214,4 +216,110 @@ Return ONLY valid JSON with no markdown. Include ONLY players where you are conf
   }
 }
 
-module.exports = { resolveTeamMappings, getTeamMappings, resolvePlayerNames };
+// Force a full re-scan of ALL 130 players regardless of existing espn_name values.
+// Returns a summary of what changed. Designed to be triggered manually via API.
+async function refreshAllPlayerNames() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('No ANTHROPIC_API_KEY configured');
+
+  const { rows: players } = await pool.query(
+    `SELECT id, fantrax_id, name, ncaa_team FROM players ORDER BY name`
+  );
+
+  console.log(`[mapping] Full player name refresh — sending ${players.length} names to Claude...`);
+
+  const playerList = players.map(p => `${p.name} (${p.ncaa_team})`).join('\n');
+
+  const prompt = `You are auditing college basketball player names for an NCAA tournament fantasy pool. Our roster comes from Fantrax but ESPN box scores may show names differently, causing players to get missed in scoring.
+
+ALL 130 players to audit:
+${playerList}
+
+Find any player whose ESPN display name differs from how they appear above. Two categories:
+
+CATEGORY 1 — FORMAT DIFFERENCES ONLY (ESPN spelling/format differs, but it's the same name):
+- Missing Jr./Sr./II/III/IV suffixes
+- Initials with/without dots: "AJ" vs "A.J."
+- Hyphenation: "Trey Kaufman Renn" vs "Trey Kaufman-Renn"
+- Accents: ESPN sometimes adds/drops them
+
+CATEGORY 2 — PREFERRED/NICKNAME DIFFERENCES (ESPN uses a completely different name the player actually goes by):
+- Nicknames used instead of legal first name: "Kevin" → "Boopie", "Robert" → "Bobby"
+- Goes by middle name instead of first name
+- Preferred name differs entirely from legal name
+
+Return ONLY valid JSON, no markdown:
+{
+  "format_fixes": {
+    "Fantrax Name": "ESPN Display Name"
+  },
+  "nickname_fixes": {
+    "Fantrax Name": "ESPN Display Name"
+  }
+}
+
+Only include players you are CONFIDENT have a mismatch. If unsure, omit them. Empty objects are fine.`;
+
+  const client = new Anthropic({ apiKey });
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 2000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const raw = message.content[0]?.text || '';
+  const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
+  const { format_fixes = {}, nickname_fixes = {} } = JSON.parse(cleaned);
+
+  const changes = { format_fixes: [], nickname_fixes: [] };
+
+  // Apply format fixes — update espn_name only (display name stays as-is)
+  for (const [fantraxName, espnName] of Object.entries(format_fixes)) {
+    const result = await pool.query(
+      `UPDATE players SET espn_name = $1 WHERE LOWER(name) = LOWER($2) RETURNING id, name`,
+      [espnName, fantraxName]
+    );
+    if (result.rows.length > 0) {
+      console.log(`[mapping] Format fix (espn_name only): "${fantraxName}" → "${espnName}"`);
+      changes.format_fixes.push({ from: fantraxName, to: espnName });
+    }
+  }
+
+  // Apply nickname fixes — update BOTH name and espn_name, and the CSV
+  const csvPath = path.join(__dirname, 'data', 'draft-results.csv');
+  let csvContent = fs.readFileSync(csvPath, 'utf8');
+
+  for (const [fantraxName, espnName] of Object.entries(nickname_fixes)) {
+    // Update DB: both name and espn_name
+    const result = await pool.query(
+      `UPDATE players SET name = $1, espn_name = $2 WHERE LOWER(name) = LOWER($3) RETURNING id, name, fantrax_id`,
+      [espnName, espnName, fantraxName]
+    );
+    if (result.rows.length > 0) {
+      console.log(`[mapping] Nickname fix (name + espn_name): "${fantraxName}" → "${espnName}"`);
+      changes.nickname_fixes.push({ from: fantraxName, to: espnName });
+
+      // Update CSV — replace the player name field in matching rows
+      // CSV format: "fantrax_id",round,pick,ov_pick,"POS","PLAYER_NAME","TEAM","FANTASY_TEAM","DATE"
+      // Escape regex special characters in the old name
+      const escaped = fantraxName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      csvContent = csvContent.replace(
+        new RegExp(`,"${escaped}",`, 'g'),
+        `,"${espnName}",`
+      );
+    }
+  }
+
+  if (Object.keys(nickname_fixes).length > 0) {
+    fs.writeFileSync(csvPath, csvContent, 'utf8');
+    console.log('[mapping] CSV updated with nickname fixes');
+  }
+
+  // Ensure all remaining players have espn_name set (mark as reviewed)
+  await pool.query(`UPDATE players SET espn_name = name WHERE espn_name IS NULL`);
+
+  console.log(`[mapping] Refresh complete: ${changes.format_fixes.length} format fixes, ${changes.nickname_fixes.length} nickname fixes`);
+  return changes;
+}
+
+module.exports = { resolveTeamMappings, getTeamMappings, resolvePlayerNames, refreshAllPlayerNames };
