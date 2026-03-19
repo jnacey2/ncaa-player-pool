@@ -86,7 +86,11 @@ async function seed() {
            draft_pick = EXCLUDED.draft_pick,
            name = EXCLUDED.name,
            ncaa_team = EXCLUDED.ncaa_team,
-           position = EXCLUDED.position
+           position = EXCLUDED.position,
+           espn_name = CASE
+             WHEN players.name != EXCLUDED.name THEN NULL
+             ELSE players.espn_name
+           END
          RETURNING id`,
         [owner, fantraxId, name, ncaaTeam, position, draftPick]
       );
