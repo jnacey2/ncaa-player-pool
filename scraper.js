@@ -570,10 +570,10 @@ async function cleanupFalseEliminations() {
       `UPDATE players SET is_eliminated = FALSE WHERE id = ANY($1)`,
       [wrongIds]
     );
-    // Un-blackout their future round scores (keep round 0 blackouts for non-First-Four teams)
+    // Un-blackout ALL rounds for falsely eliminated players (including Play-In)
     await pool.query(
       `UPDATE player_round_scores SET blacked_out = FALSE, pts = NULL
-       WHERE round_num > 0 AND blacked_out = TRUE AND player_id = ANY($1)`,
+       WHERE blacked_out = TRUE AND player_id = ANY($1)`,
       [wrongIds]
     );
     console.log(`[scraper] Cleared ${wrongIds.length} false eliminations`);

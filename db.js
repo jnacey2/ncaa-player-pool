@@ -118,11 +118,11 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE team_mappings ADD COLUMN IF NOT EXISTS confirmed BOOLEAN DEFAULT FALSE;
   `);
-  // Restore any round-0 cells that were blacked out for non-First-Four participants.
-  // Only truly eliminated players should have blacked-out cells.
+  // Restore ALL blacked-out cells for non-eliminated players.
+  // Only truly eliminated players should ever have black cells.
   await pool.query(`
-    UPDATE player_round_scores SET blacked_out = FALSE
-    WHERE round_num = 0 AND pts IS NULL AND blacked_out = TRUE
+    UPDATE player_round_scores SET blacked_out = FALSE, pts = NULL
+    WHERE blacked_out = TRUE
     AND player_id IN (SELECT id FROM players WHERE is_eliminated = FALSE)
   `);
   // Fix play-in scores incorrectly stored as round 6 due to ESPN label matching bug.
