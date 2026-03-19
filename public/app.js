@@ -9,6 +9,7 @@ let state = {
   games: [],
   alerts: [],
   commentary: null,
+  teamMappings: {},
   lastUpdated: null,
   hasLive: false,
   seenAlertIds: new Set(JSON.parse(localStorage.getItem('seenAlertIds') || '[]')),
@@ -23,17 +24,19 @@ async function fetchJSON(url) {
 
 async function loadAll() {
   try {
-    const [standings, games, alerts, commentary, lastUpdated] = await Promise.all([
+    const [standings, games, alerts, commentary, teamMappings, lastUpdated] = await Promise.all([
       fetchJSON('/api/standings'),
       fetchJSON('/api/games'),
       fetchJSON('/api/alerts?limit=30'),
       fetchJSON('/api/commentary'),
+      fetchJSON('/api/team-mappings'),
       fetchJSON('/api/last-updated'),
     ]);
     state.standings = standings;
     state.games = games;
     state.alerts = alerts;
     state.commentary = commentary;
+    state.teamMappings = teamMappings; // { csvAbbrev: { espn_abbrev, espn_name } }
     state.lastUpdated = lastUpdated;
     state.hasLive = games.some(g => g.status === 'live');
     render();
@@ -402,34 +405,45 @@ function buildPlayerRow(player) {
 }
 
 /* ─── Team name matching (CSV abbrev → ESPN display name keywords) ─────────── */
+// Use nicknames where school names are ambiguous (e.g. Miami FL vs Miami OH,
+// Michigan vs Michigan State, Iowa vs Iowa State, Texas vs Texas Tech, etc.)
 const TEAM_KEYWORDS = {
-  'Ariz':    'arizona',         'Ark':    'arkansas',
-  'Bama':    'alabama',         'BYU':    'byu',
-  'Duke':    'duke',            'Fla':    'florida',
-  'Gonz':    'gonzaga',         'Hou':    'houston',
-  'IaSt':    'iowa state',      'Ill':    'illinois',
-  'Iowa':    'iowa',            'Kan':    'kansas',
-  'KY':      'kentucky',        'Leh':    'lehigh',
-  'Lou':     'louisville',      'Mia-FL': 'miami',
-  'Mich':    'michigan',        'MSU':    'michigan state',
-  'Nebras':  'nebraska',        'OhSt':   'ohio state',
-  'Pur':     'purdue',          'SCla':   'santa clara',
-  'SMU':     'smu',             'SoFL':   'south florida',
-  'StJon':   "st. john",        'StLou':  'saint louis',
-  'StMar':   "saint mary",      'Tenn':   'tennessee',
-  'Tex':     'texas',           'TxTch':  'texas tech',
-  'UCLA':    'ucla',            'UConn':  'connecticut',
-  'UGA':     'georgia',         'UNC':    'north carolina',
-  'UtSt':    'utah state',      'UVA':    'virginia',
-  'VCU':     'vcu',             'Vand':   'vanderbilt',
-  'Wisc':    'wisconsin',       'PVAM':   'prairie view',
-  'Akr':     'akron',           'Wisc':   'wisconsin',
+  'Ariz':    'wildcats',        'Ark':    'razorbacks',
+  'Bama':    'crimson tide',    'BYU':    'cougars',
+  'Duke':    'blue devils',     'Fla':    'gators',
+  'Gonz':    'bulldogs',        'Hou':    'houston',
+  'IaSt':    'cyclones',        'Ill':    'illini',
+  'Iowa':    'hawkeyes',        'Kan':    'jayhawks',
+  'KY':      'wildcats',        'Leh':    'lehigh',
+  'Lou':     'cardinals',       'Mia-FL': 'hurricanes',
+  'Mich':    'wolverines',      'MSU':    'spartans',
+  'Nebras':  'cornhuskers',     'OhSt':   'buckeyes',
+  'Pur':     'boilermakers',    'SCla':   'santa clara',
+  'SMU':     'mustangs',        'SoFL':   'south florida',
+  'StJon':   "red storm",       'StLou':  'billikens',
+  'StMar':   'gaels',           'Tenn':   'volunteers',
+  'Tex':     'longhorns',       'TxTch':  'red raiders',
+  'UCLA':    'bruins',          'UConn':  'huskies',
+  'UGA':     'bulldogs',        'UNC':    'tar heels',
+  'UtSt':    'utah state',      'UVA':    'cavaliers',
+  'VCU':     'rams',            'Vand':   'commodores',
+  'Wisc':    'badgers',         'PVAM':   'prairie view',
+  'Akr':     'zips',
 };
 
 function playerTeamMatchesGame(ncaaTeam, espnTeamName) {
-  const keyword = TEAM_KEYWORDS[ncaaTeam] || ncaaTeam.toLowerCase();
+  if (!espnTeamName) return false;
   const haystack = espnTeamName.toLowerCase();
-  return haystack.includes(keyword) || keyword.includes(haystack);
+
+  // Prefer the Claude-learned mapping: exact ESPN name match
+  const learned = state.teamMappings[ncaaTeam];
+  if (learned?.espn_name) {
+    return haystack === learned.espn_name.toLowerCase();
+  }
+
+  // Fall back to keyword table
+  const keyword = TEAM_KEYWORDS[ncaaTeam] || ncaaTeam.toLowerCase();
+  return haystack.includes(keyword);
 }
 
 function findPlayersInGame(game) {

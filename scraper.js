@@ -2,6 +2,7 @@ const axios = require('axios');
 const cron = require('node-cron');
 const Fuse = require('fuse.js');
 const { pool } = require('./db');
+const { getTeamMappings } = require('./mapping');
 
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball';
 
@@ -422,12 +423,22 @@ async function updateEliminationStatus() {
     `SELECT team_abbrev, eliminated_in_round FROM bracket_slots WHERE is_eliminated = TRUE`
   );
 
+  // Load learned team mappings (espn_abbrev → csv_abbrev) from DB
+  const teamMappings = await getTeamMappings();
+  // Build a reverse map: espn_abbrev → csv_abbrev
+  const espnToCsv = {};
+  for (const [csvAbbrev, data] of Object.entries(teamMappings)) {
+    if (data.espn_abbrev) espnToCsv[data.espn_abbrev.toUpperCase()] = csvAbbrev;
+  }
+
   for (const { team_abbrev, eliminated_in_round } of elimTeams) {
     // Use == null to catch both null and undefined, but NOT 0 (round 0 = First Four)
     if (eliminated_in_round == null) continue;
 
-    // Resolve ESPN abbreviation to our CSV ncaa_team value
-    const csvAbbrev = ESPN_TO_CSV_ABBREV[team_abbrev.toUpperCase()] || team_abbrev;
+    // Resolve ESPN abbreviation to our CSV ncaa_team value using learned mapping
+    const csvAbbrev = espnToCsv[team_abbrev.toUpperCase()]
+      || ESPN_TO_CSV_ABBREV[team_abbrev.toUpperCase()]
+      || team_abbrev;
 
     // Find players on this team — try both the CSV abbrev and original ESPN abbrev
     const { rows: affectedPlayers } = await pool.query(

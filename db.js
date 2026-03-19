@@ -90,6 +90,14 @@ async function initSchema() {
       top_3 JSONB,
       bottom_3 JSONB
     );
+
+    CREATE TABLE IF NOT EXISTS team_mappings (
+      id SERIAL PRIMARY KEY,
+      csv_abbrev VARCHAR(20) UNIQUE NOT NULL,
+      espn_abbrev VARCHAR(20),
+      espn_name VARCHAR(150),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   // Migrations: add columns / constraints that may not exist on older DB instances

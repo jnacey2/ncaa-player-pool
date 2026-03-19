@@ -5,6 +5,7 @@ const { pool, initSchema } = require('./db');
 const { seed } = require('./seed');
 const { startScheduler } = require('./scraper');
 const { generateCommentary, scheduleCommentary } = require('./commentary');
+const { resolveTeamMappings, getTeamMappings } = require('./mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -193,6 +194,16 @@ app.post('/api/commentary/regenerate', async (req, res) => {
   }
 });
 
+// GET /api/team-mappings — learned CSV abbrev → ESPN team name mappings
+app.get('/api/team-mappings', async (req, res) => {
+  try {
+    const mappings = await getTeamMappings();
+    res.json(mappings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/debug — diagnostic snapshot for bug investigation
 app.get('/api/debug', async (req, res) => {
   try {
@@ -237,6 +248,9 @@ async function start() {
 
   // Start Claude commentary scheduler
   scheduleCommentary();
+
+  // Resolve team mappings using Claude (runs once per new unmapped team)
+  resolveTeamMappings().catch(err => console.error('[mapping] startup error:', err.message));
 
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
