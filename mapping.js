@@ -317,7 +317,7 @@ Only include players you are CONFIDENT have a mismatch. If unsure, omit them. Em
     }
   }
 
-  if (Object.keys(nickname_fixes).length > 0) {
+  if (changes.nickname_fixes.length > 0) {
     fs.writeFileSync(csvPath, csvContent, 'utf8');
     console.log('[mapping] CSV updated with nickname fixes');
   }
