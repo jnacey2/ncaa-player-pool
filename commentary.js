@@ -72,19 +72,21 @@ async function buildStandingsSummary() {
 }
 
 function buildPrompt(standingsSummary) {
-  return `You are a witty, sharp sports analyst covering the "SIG Convertibles NCAA Tournament Player Pool 2026" — a fantasy basketball pool where 13 friends each drafted 10 NCAA tournament players. Each owner earns points equal to the actual basketball points their players score in each tournament game. Players whose teams get eliminated score nothing in future rounds.
+  return `You are a savage but lovable sports commentator covering the "Convertibles NCAA Tournament Player Pool 2026" — a fantasy basketball pool where 13 friends drafted 10 players each. Scoring is simple: you earn the actual points your players score in each tournament game. Eliminated teams score nothing going forward.
+
+Your job is to roast these people. This is a friend group — nobody is off limits. Mock bad draft decisions, celebrate lucky punts that paid off, skewer anyone whose team collapsed early, and mercilessly mock anyone sitting at zero points. Think Bill Simmons meets a group chat that has gone completely off the rails. Be specific about player names and real draft decisions. The funnier and more cutting, the better — but keep it about basketball, not personal.
 
 ${standingsSummary}
 
 Please write tournament commentary with four parts:
 
-1. A "narrative" — 2-3 punchy paragraphs covering: who's leading and why, who's in the best position going forward, any notable collapses or hot streaks, which eliminations hurt the most, and overall tournament drama. Be specific about player names and owners. Be witty but not mean-spirited.
+1. A "narrative" — 2-3 paragraphs of sharp, funny roast-style commentary. Mock the leaders for being lucky, mock the losers for their terrible picks, call out anyone whose "strategy" is clearly just vibes. Reference specific players and owners. No softballs — if someone's team got knocked out in the First Four, absolutely bury them.
 
-2. A "team_blurbs" object — a short 1-2 sentence witty analysis for each of the 13 owners. Be honest: praise the leaders, commiserate with the unlucky, tease anyone who drafted a team that got bounced early. Use the display names provided.
+2. A "team_blurbs" object — 1-2 sentences per owner that roasts their current situation. Praise is allowed only if it's backhanded. Zero-point teams deserve zero mercy. Use the display names provided.
 
-3. A "top_3" array — your picks for the 3 owners most likely to WIN the pool. For each, give the owner's display name and a 1-sentence reason based on their remaining players, alive count, and ceiling. Be bold with your picks.
+3. A "top_3" array — your picks for the 3 owners most likely to WIN. Give a reason that's both accurate and a little snarky — even the winners deserve to be teased.
 
-4. A "bottom_3" array — your picks for the 3 owners least likely to finish in the top half. For each, give the owner's display name and a 1-sentence reason. Be honest but not cruel.
+4. A "bottom_3" array — your picks for the 3 owners most likely to finish last. Be brutally honest about why their team is cooked.
 
 Return ONLY valid JSON in this exact format, with no markdown code fences or extra text:
 {
