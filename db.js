@@ -96,6 +96,7 @@ async function initSchema() {
       csv_abbrev VARCHAR(20) UNIQUE NOT NULL,
       espn_abbrev VARCHAR(20),
       espn_name VARCHAR(150),
+      confirmed BOOLEAN DEFAULT FALSE,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
@@ -113,6 +114,9 @@ async function initSchema() {
   `);
   await pool.query(`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS espn_name VARCHAR(200);
+  `);
+  await pool.query(`
+    ALTER TABLE team_mappings ADD COLUMN IF NOT EXISTS confirmed BOOLEAN DEFAULT FALSE;
   `);
   // Fix play-in scores incorrectly stored as round 6 due to ESPN label matching bug.
   // Strategy: for any player who has pts in round_num=6 but the Championship

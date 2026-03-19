@@ -29,15 +29,29 @@ async function resolveTeamMappings() {
     `SELECT DISTINCT ncaa_team FROM players ORDER BY ncaa_team`
   );
 
-  // Find CSV teams that don't yet have an ESPN mapping
+  // Build a set of ESPN team abbreviations currently in bracket_slots (concrete data)
+  const espnAbbrevSet = new Set(espnTeams.map(t => t.team_abbrev.toUpperCase()));
+
+  // Teams to (re)map:
+  // 1. CSV teams with no mapping at all
+  // 2. CSV teams with an unconfirmed (guessed) mapping whose ESPN team is now in bracket_slots
   const { rows: existing } = await pool.query(
-    `SELECT csv_abbrev FROM team_mappings WHERE espn_name IS NOT NULL`
+    `SELECT csv_abbrev, espn_abbrev, confirmed FROM team_mappings`
   );
-  const alreadyMapped = new Set(existing.map(r => r.csv_abbrev));
-  const toMap = csvTeams.filter(t => !alreadyMapped.has(t.ncaa_team));
+  const existingMap = {};
+  existing.forEach(r => { existingMap[r.csv_abbrev] = r; });
+
+  const toMap = csvTeams.filter(t => {
+    const entry = existingMap[t.ncaa_team];
+    if (!entry) return true; // never mapped
+    if (!entry.confirmed && entry.espn_abbrev && espnAbbrevSet.has(entry.espn_abbrev.toUpperCase())) {
+      return true; // was guessed; now ESPN has concrete data for this team
+    }
+    return false;
+  });
 
   if (toMap.length === 0) {
-    console.log('[mapping] All teams already mapped');
+    console.log('[mapping] All teams confirmed or no new data');
     return;
   }
 
@@ -91,19 +105,22 @@ Return ONLY valid JSON with no markdown fences:
 
     let saved = 0;
     for (const [csvAbbrev, espnData] of Object.entries(mapping)) {
+      // Mark confirmed if ESPN has concrete bracket data for this team
+      const isConfirmed = !!(espnData.espn_abbrev && espnAbbrevSet.has(espnData.espn_abbrev.toUpperCase()));
       await pool.query(
-        `INSERT INTO team_mappings (csv_abbrev, espn_abbrev, espn_name, updated_at)
-         VALUES ($1, $2, $3, NOW())
+        `INSERT INTO team_mappings (csv_abbrev, espn_abbrev, espn_name, confirmed, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
          ON CONFLICT (csv_abbrev) DO UPDATE SET
            espn_abbrev = EXCLUDED.espn_abbrev,
            espn_name = EXCLUDED.espn_name,
+           confirmed = EXCLUDED.confirmed,
            updated_at = NOW()`,
-        [csvAbbrev, espnData.espn_abbrev || null, espnData.espn_name || null]
+        [csvAbbrev, espnData.espn_abbrev || null, espnData.espn_name || null, isConfirmed]
       );
       saved++;
     }
 
-    console.log(`[mapping] Saved ${saved} team mappings`);
+    console.log(`[mapping] Saved ${saved} team mappings (confirmed from bracket data)`);
   } catch (err) {
     console.error('[mapping] Error resolving mappings:', err.message);
   }

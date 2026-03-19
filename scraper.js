@@ -1,5 +1,4 @@
 const axios = require('axios');
-const cron = require('node-cron');
 const Fuse = require('fuse.js');
 const { pool } = require('./db');
 const { getTeamMappings } = require('./mapping');
@@ -298,10 +297,11 @@ async function buildPlayerIndex() {
 }
 
 // Update player_round_scores from a completed/live box score
-async function processBoxScore(boxScore, roundNum, gameStatus) {
+// playerIndex is pre-built once per scrape cycle and passed in
+async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex) {
   if (!boxScore || !boxScore.boxscore) return;
 
-  const { fuse } = await buildPlayerIndex();
+  const { fuse } = playerIndex;
 
   const teams = boxScore.boxscore.players || [];
   for (const teamData of teams) {
@@ -564,6 +564,9 @@ async function scrape() {
     await upsertGames(events);
     await updateBracketSlots(events);
 
+    // Build player index once per scrape cycle (Fix 2: avoids N rebuilds for N live games)
+    const playerIndex = await buildPlayerIndex();
+
     // Process box scores for live and recently finished games
     for (const event of events) {
       const status = event.status?.type?.name || '';
@@ -576,7 +579,7 @@ async function scrape() {
 
       const boxScore = await fetchBoxScore(event.id);
       if (boxScore) {
-        await processBoxScore(boxScore, roundNum, gameStatus);
+        await processBoxScore(boxScore, roundNum, gameStatus, playerIndex);
       }
 
       // Small delay to be polite to ESPN
@@ -587,10 +590,24 @@ async function scrape() {
     await updateEliminationByCSVAbbrev();
     await recomputeTotals();
 
+    // Fix 1: black out round 0 for any player who never scored there, once all
+    // First Four games are final (non-participants would inflate ceiling forever)
+    await pool.query(`
+      UPDATE player_round_scores SET blacked_out = TRUE
+      WHERE round_num = 0 AND pts IS NULL AND blacked_out = FALSE
+      AND NOT EXISTS (
+        SELECT 1 FROM games WHERE round_num = 0 AND status != 'final'
+      )
+    `);
+
     await pool.query(
       `INSERT INTO scrape_log (status, message) VALUES ('ok', $1)`,
       [`Scraped ${events.length} events`]
     );
+
+    // Fix 4: prune scrape_log — keep only last 24 hours
+    await pool.query(`DELETE FROM scrape_log WHERE scraped_at < NOW() - INTERVAL '24 hours'`);
+
     console.log('[scraper] Scrape complete');
   } catch (err) {
     console.error('[scraper] Scrape error:', err.message);
