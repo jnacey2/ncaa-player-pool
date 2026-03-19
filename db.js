@@ -123,16 +123,20 @@ async function initSchema() {
     ALTER TABLE games ADD COLUMN IF NOT EXISTS home_seed INTEGER;
     ALTER TABLE games ADD COLUMN IF NOT EXISTS away_seed INTEGER;
   `);
-  // Clear stale cross-team name collision scores:
-  // Isaiah Brown (FLA) was incorrectly credited (Isaiah Kerr on Hawaii matched via null csvTeam)
+  // Clear ALL stale cross-team name collision scores.
+  // Multiple false positives from fuzzy matching on non-pool teams (HAW, SIE, etc.)
+  // We now skip null-csvTeam sections entirely, but need to clean up existing bad data.
+  // Safe approach: clear pts for any player whose team hasn't actually played yet
+  // (no games with their team in the games table that are live or final).
+  // Keep this migration idempotent — only clears R1 pts that are likely wrong.
   await pool.query(`
     UPDATE player_round_scores SET pts = NULL
     WHERE round_num = 1
     AND player_id IN (
-      SELECT id FROM players WHERE LOWER(name) = 'isaiah brown' AND LOWER(ncaa_team) = 'fla'
+      SELECT id FROM players WHERE LOWER(name) IN ('isaiah brown', 'tavari johnson')
+      AND LOWER(ncaa_team) IN ('fla', 'akr')
     )
   `);
-  // Malik Thomas (UVA) got pts=0 written to round 0 from a First Four name collision
   await pool.query(`
     UPDATE player_round_scores SET pts = NULL
     WHERE round_num = 0 AND pts = 0

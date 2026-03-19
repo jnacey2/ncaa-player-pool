@@ -318,8 +318,13 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
   for (const teamData of teams) {
     // Resolve which CSV ncaa_team this box score section belongs to.
     const bsAbbr = (teamData.team?.abbreviation || '').toUpperCase();
-    const bsDisplayName = (teamData.team?.displayName || teamData.team?.name || '').toLowerCase();
     const csvTeam = espnToCsv[bsAbbr] || ESPN_TO_CSV_ABBREV[bsAbbr] || null;
+
+    // If we can't identify the team, skip the entire section. Every team with a
+    // pool player is in our mappings (LLM + hardcoded). A null csvTeam means
+    // this is a non-pool team (e.g. HAW, SIE, TROY) — no legitimate match exists
+    // and processing it only produces false positives from fuzzy name collisions.
+    if (!csvTeam) continue;
 
     const statistics = teamData.statistics || [];
     for (const statGroup of statistics) {
@@ -349,15 +354,8 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
 
         const player = results[0].item;
 
-        // Team validation: reject if player's team doesn't match the box score section.
-        // Case 1: we know the CSV team from mappings — direct compare
-        if (csvTeam && player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
-        // Case 2: csvTeam is null (unmapped team) — fall back to display name check
-        // using normalizeTeamAbbrev so "Fla" → "florida" rejects "hawaii rainbow warriors"
-        if (!csvTeam && bsDisplayName) {
-          const playerKeyword = normalizeTeamAbbrev(player.ncaa_team);
-          if (playerKeyword && !bsDisplayName.includes(playerKeyword)) continue;
-        }
+        // Team validation: reject if player's team doesn't match the box score section
+        if (player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
 
         // Only update if game is live or final (not pre-game)
         if (gameStatus === 'pre') continue;
