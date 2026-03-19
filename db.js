@@ -123,6 +123,12 @@ async function initSchema() {
     ALTER TABLE games ADD COLUMN IF NOT EXISTS home_seed INTEGER;
     ALTER TABLE games ADD COLUMN IF NOT EXISTS away_seed INTEGER;
   `);
+  // ESPN name override: Nicholas Boyd (Wisc) → "Nick Boyd" (ESPN uses shortened first name)
+  await pool.query(`
+    UPDATE players SET espn_name = 'Nick Boyd'
+    WHERE LOWER(name) = 'nicholas boyd' AND espn_name != 'Nick Boyd'
+  `);
+
   // Manual score correction: Bruce Thornton (Ferry) R1 = 10 due to ESPN API error.
   // Stale value was 5; correcting to 10. ESPN scraper will overwrite when it recovers.
   await pool.query(`
