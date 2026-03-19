@@ -123,6 +123,16 @@ async function initSchema() {
     ALTER TABLE games ADD COLUMN IF NOT EXISTS home_seed INTEGER;
     ALTER TABLE games ADD COLUMN IF NOT EXISTS away_seed INTEGER;
   `);
+  // Manual score correction: Bruce Thornton (Ferry) R1 = 10 due to ESPN API error.
+  // Stale value was 5; correcting to 10. ESPN scraper will overwrite when it recovers.
+  await pool.query(`
+    UPDATE player_round_scores SET pts = 10
+    WHERE round_num = 1 AND (pts IS NULL OR pts <= 5)
+    AND player_id = (
+      SELECT id FROM players WHERE LOWER(name) = 'bruce thornton'
+        AND owner = 'michaelfer' LIMIT 1
+    )
+  `);
   // Fix games table round_num using the authoritative date-based mapping.
   // Previous code used text-based detection which matched "Championship" from
   // ESPN's generic tournament title, misassigning all rounds to round 6.
