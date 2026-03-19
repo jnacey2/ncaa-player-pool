@@ -124,10 +124,10 @@ async function initSchema() {
     ALTER TABLE games ADD COLUMN IF NOT EXISTS away_seed INTEGER;
   `);
   // Clear stale cross-team name collision scores:
-  // Isaiah Brown (FLA) was incorrectly credited with another "Isaiah Brown"'s points
+  // Isaiah Brown (FLA) was incorrectly credited (Isaiah Kerr on Hawaii matched via null csvTeam)
   await pool.query(`
     UPDATE player_round_scores SET pts = NULL
-    WHERE pts IS NOT NULL AND round_num = 1
+    WHERE round_num = 1
     AND player_id IN (
       SELECT id FROM players WHERE LOWER(name) = 'isaiah brown' AND LOWER(ncaa_team) = 'fla'
     )
