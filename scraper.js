@@ -616,6 +616,16 @@ async function scrape() {
     await upsertGames(events);
     await updateBracketSlots(events);
 
+    // Load the authoritative round_num from the games table (already corrected
+    // by the date-based migration at startup). This is the source of truth —
+    // we do NOT re-run getRoundNum() here, which can misfire if ESPN embeds
+    // "Championship" in the event title for every round.
+    const { rows: gameRoundRows } = await pool.query(
+      `SELECT espn_game_id, round_num FROM games WHERE round_num IS NOT NULL`
+    );
+    const gameRoundMap = {};
+    gameRoundRows.forEach(g => { gameRoundMap[g.espn_game_id] = g.round_num; });
+
     // Build player index once per scrape cycle (Fix 2: avoids N rebuilds for N live games)
     const playerIndex = await buildPlayerIndex();
 
@@ -626,7 +636,7 @@ async function scrape() {
 
       if (gameStatus === 'pre') continue;
 
-      const roundNum = getRoundNum(event);
+      const roundNum = gameRoundMap[event.id];
       if (roundNum === null || roundNum === undefined || roundNum < 0) continue;
 
       const boxScore = await fetchBoxScore(event.id);
