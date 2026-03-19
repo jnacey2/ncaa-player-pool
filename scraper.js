@@ -283,10 +283,14 @@ async function updateBracketSlots(events) {
 }
 
 // Build a Fuse.js searcher from current pool players
+// espn_name takes priority over name so overrides (e.g. "Jaron Pierre Jr.") match first
 async function buildPlayerIndex() {
-  const { rows } = await pool.query('SELECT id, name, ncaa_team FROM players');
+  const { rows } = await pool.query('SELECT id, name, espn_name, ncaa_team FROM players');
   const fuse = new Fuse(rows, {
-    keys: ['name'],
+    keys: [
+      { name: 'espn_name', weight: 2 },
+      { name: 'name', weight: 1 },
+    ],
     threshold: 0.3,
     includeScore: true,
   });

@@ -121,4 +121,80 @@ async function getTeamMappings() {
   return map;
 }
 
-module.exports = { resolveTeamMappings, getTeamMappings };
+// Ask Claude to review player names and flag ESPN display name differences.
+// Looks for Jr./Sr./III suffixes, hyphenation, accents, shortened first names, etc.
+// Only runs once (skips players that already have espn_name set).
+async function resolvePlayerNames() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return;
+
+  // Get players that don't yet have an espn_name override
+  const { rows: players } = await pool.query(
+    `SELECT id, name, ncaa_team FROM players WHERE espn_name IS NULL ORDER BY name`
+  );
+
+  if (players.length === 0) {
+    console.log('[mapping] All player names already resolved');
+    return;
+  }
+
+  console.log(`[mapping] Asking Claude to review ${players.length} player names for ESPN mismatches...`);
+
+  const playerList = players.map(p => `${p.name} (${p.ncaa_team})`).join('\n');
+
+  const prompt = `You are reviewing college basketball player names for an NCAA tournament fantasy app. Our player list comes from Fantrax, but ESPN box scores may display names differently.
+
+Review this list of players and identify any whose ESPN display name likely differs from how they appear here. Common differences:
+- Missing generational suffixes: "Jaron Pierre" → "Jaron Pierre Jr."
+- Missing or different suffixes: Sr., II, III, IV
+- Shortened first names: "AJ" vs "A.J." vs "Andrew James"
+- Hyphenation differences: "Trey Kaufman Renn" vs "Trey Kaufman-Renn"
+- Accented characters: ESPN sometimes drops or adds accents
+- Nicknames vs full names
+
+Players to review:
+${playerList}
+
+Return ONLY valid JSON with no markdown. Include ONLY players where you are confident the ESPN name differs. If you're unsure, do NOT include the player.
+{
+  "Fantrax Name": "ESPN Display Name",
+  ...
+}`;
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const raw = message.content[0]?.text || '';
+    const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
+    const corrections = JSON.parse(cleaned);
+
+    let updated = 0;
+    for (const [fantraxName, espnName] of Object.entries(corrections)) {
+      // Find the player by exact name match
+      const result = await pool.query(
+        `UPDATE players SET espn_name = $1 WHERE LOWER(name) = LOWER($2) RETURNING id, name`,
+        [espnName, fantraxName]
+      );
+      if (result.rows.length > 0) {
+        console.log(`[mapping] Player name fix: "${fantraxName}" → "${espnName}"`);
+        updated++;
+      }
+    }
+
+    // Mark the rest as reviewed (set espn_name = name so we don't re-run them)
+    await pool.query(
+      `UPDATE players SET espn_name = name WHERE espn_name IS NULL`
+    );
+
+    console.log(`[mapping] ${updated} player name corrections applied`);
+  } catch (err) {
+    console.error('[mapping] Error resolving player names:', err.message);
+  }
+}
+
+module.exports = { resolveTeamMappings, getTeamMappings, resolvePlayerNames };

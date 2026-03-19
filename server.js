@@ -5,7 +5,7 @@ const { pool, initSchema } = require('./db');
 const { seed } = require('./seed');
 const { startScheduler } = require('./scraper');
 const { generateCommentary, scheduleCommentary } = require('./commentary');
-const { resolveTeamMappings, getTeamMappings } = require('./mapping');
+const { resolveTeamMappings, getTeamMappings, resolvePlayerNames } = require('./mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -250,7 +250,10 @@ async function start() {
   scheduleCommentary();
 
   // Resolve team mappings using Claude (runs once per new unmapped team)
-  resolveTeamMappings().catch(err => console.error('[mapping] startup error:', err.message));
+  resolveTeamMappings().catch(err => console.error('[mapping] team startup error:', err.message));
+
+  // Resolve player name overrides using Claude (runs once, skips already-reviewed players)
+  resolvePlayerNames().catch(err => console.error('[mapping] player startup error:', err.message));
 
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);

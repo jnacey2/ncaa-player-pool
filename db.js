@@ -111,6 +111,9 @@ async function initSchema() {
     ALTER TABLE commentary ADD COLUMN IF NOT EXISTS top_3 JSONB;
     ALTER TABLE commentary ADD COLUMN IF NOT EXISTS bottom_3 JSONB;
   `);
+  await pool.query(`
+    ALTER TABLE players ADD COLUMN IF NOT EXISTS espn_name VARCHAR(200);
+  `);
   // Fix play-in scores incorrectly stored as round 6 due to ESPN label matching bug.
   // Strategy: for any player who has pts in round_num=6 but the Championship
   // hasn't happened yet (Apr 7), copy those pts into their round_num=0 row,
