@@ -34,6 +34,21 @@ async function buildStandingsSummary() {
      ORDER BY p.owner, p.draft_pick ASC NULLS LAST`
   );
 
+  // Find which players have actually played at least one tournament game
+  // (have any non-null pts in player_round_scores, blacked_out or not)
+  const { rows: scoredPlayers } = await pool.query(
+    `SELECT DISTINCT player_id FROM player_round_scores
+     WHERE pts IS NOT NULL`
+  );
+  const hasPlayedSet = new Set(scoredPlayers.map(r => r.player_id));
+
+  // Get player IDs so we can check hasPlayedSet
+  const { rows: playerIds } = await pool.query(
+    `SELECT id, owner, name FROM players`
+  );
+  const playerIdMap = {};
+  playerIds.forEach(p => { playerIdMap[`${p.owner}:${p.name}`] = p.id; });
+
   const { rows: recentAlerts } = await pool.query(
     `SELECT message FROM alerts
      ORDER BY created_at DESC LIMIT 10`
@@ -50,15 +65,34 @@ async function buildStandingsSummary() {
   teams.forEach((team, idx) => {
     const rank = idx + 1;
     const teamPlayers = playersByOwner[team.owner] || [];
-    const alive = teamPlayers.filter(p => !p.is_eliminated).map(p => p.name);
-    const eliminated = teamPlayers.filter(p => p.is_eliminated).map(p => p.name);
+    const alive = teamPlayers.filter(p => !p.is_eliminated);
+    const eliminated = teamPlayers.filter(p => p.is_eliminated);
+
+    // Split alive players into: played (have actual game stats) vs waiting (game not yet played)
+    const played = alive.filter(p => {
+      const pid = playerIdMap[`${p.owner}:${p.name}`];
+      return pid && hasPlayedSet.has(pid);
+    });
+    const waiting = alive.filter(p => {
+      const pid = playerIdMap[`${p.owner}:${p.name}`];
+      return !pid || !hasPlayedSet.has(pid);
+    });
+
     const topScorer = [...teamPlayers].sort((a, b) => b.total_pts - a.total_pts)[0];
 
     summary += `#${rank} ${team.display_name}: ${team.total_pts} pts, ${team.players_remaining}/10 players alive\n`;
-    summary += `  Alive: ${alive.join(', ') || 'none'}\n`;
-    if (eliminated.length) summary += `  Eliminated: ${eliminated.join(', ')}\n`;
+
+    if (played.length > 0) {
+      summary += `  Played so far: ${played.map(p => `${p.name} (${p.total_pts} pts)`).join(', ')}\n`;
+    }
+    if (waiting.length > 0) {
+      summary += `  Waiting to play: ${waiting.map(p => p.name).join(', ')}\n`;
+    }
+    if (eliminated.length > 0) {
+      summary += `  Eliminated: ${eliminated.map(p => p.name).join(', ')}\n`;
+    }
     if (topScorer && topScorer.total_pts > 0) {
-      summary += `  Top scorer: ${topScorer.name} (${topScorer.total_pts} pts)\n`;
+      summary += `  Top scorer so far: ${topScorer.name} (${topScorer.total_pts} pts)\n`;
     }
     summary += '\n';
   });
@@ -76,7 +110,9 @@ function buildPrompt(standingsSummary) {
 
 CRITICAL RULE — THE A$$: The person who finishes DEAD LAST in this pool is crowned "The A$$" and must pay DOUBLE the pool fees for THIS tournament — right now, this year, this pool. Not next year. They owe double immediately. This is the ultimate shame. Whenever you reference the last-place owner or anyone in serious danger of finishing last, you MUST work in the A$$ stakes. Make it clear what's at risk financially, right now.
 
-Your job is to roast these people. This is a friend group — nobody is off limits. Mock bad draft decisions, celebrate lucky punts that paid off, skewer anyone whose team collapsed early, and mercilessly mock anyone sitting at zero points. Think Bill Simmons meets a group chat that has gone completely off the rails. Be specific about player names and real draft decisions. The funnier and more cutting, the better — but keep it about basketball, not personal.
+Your job is to roast these people. This is a friend group — nobody is off limits. Mock bad draft decisions, celebrate lucky punts that paid off, skewer anyone whose team collapsed early. Think Bill Simmons meets a group chat that has gone completely off the rails. Be specific about player names and real draft decisions. The funnier and more cutting, the better — but keep it about basketball, not personal.
+
+IMPORTANT CONTEXT — each owner's players are split into "Played so far" and "Waiting to play." An owner with 0 points but all their players still "Waiting to play" is NOT necessarily bad — their players just haven't tipped off yet. Reserve your harshest roasts for owners whose players HAVE played and still scored 0 or very little, or for owners who lost players to early eliminations. Don't mock someone for being at zero if their games literally haven't happened yet — mock them for who they drafted instead.
 
 ${standingsSummary}
 
