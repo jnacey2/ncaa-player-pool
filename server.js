@@ -139,36 +139,6 @@ app.get('/api/last-updated', async (req, res) => {
   }
 });
 
-// GET /api/alerts — recent alerts (newest first)
-app.get('/api/alerts', async (req, res) => {
-  try {
-    const limit = Math.min(parseInt(req.query.limit || '30', 10), 100);
-    const { rows } = await pool.query(
-      `SELECT id, created_at, type, message, owner, player_name, seen
-       FROM alerts
-       ORDER BY created_at DESC
-       LIMIT $1`,
-      [limit]
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/alerts/seen — mark alerts as seen
-app.post('/api/alerts/seen', async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (Array.isArray(ids) && ids.length) {
-      await pool.query(`UPDATE alerts SET seen = TRUE WHERE id = ANY($1)`, [ids]);
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // GET /api/commentary — most recent commentary
 app.get('/api/commentary', async (req, res) => {
   try {

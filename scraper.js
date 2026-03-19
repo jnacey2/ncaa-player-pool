@@ -304,11 +304,6 @@ async function processBoxScore(boxScore, roundNum, gameStatus) {
   const { fuse } = await buildPlayerIndex();
 
   const teams = boxScore.boxscore.players || [];
-  // #region agent log — Hypothesis C: log stat group names arrays to see if PTS is present
-  const statGroupNames = teams.flatMap(t => (t.statistics || []).map(sg => sg.names || []));
-  console.log('[DEBUG][HypC] stat group names arrays found:', JSON.stringify(statGroupNames));
-  fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:processBoxScore',message:'stat group names',data:{roundNum,gameStatus,statGroupNames},hypothesisId:'C',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   for (const teamData of teams) {
     const statistics = teamData.statistics || [];
     for (const statGroup of statistics) {
@@ -337,11 +332,6 @@ async function processBoxScore(boxScore, roundNum, gameStatus) {
         if (!results.length || results[0].score > 0.3) continue;
 
         const player = results[0].item;
-
-        // #region agent log — Hypothesis D: log when a pool player is matched (catches Graham Ike dup issue)
-        console.log(`[DEBUG][HypD] matched espnName="${espnName}" → player.id=${player.id} player.name="${player.name}" pts=${pts} round=${roundNum}`);
-        fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:processBoxScore:match',message:'pool player matched',data:{espnName,playerId:player.id,playerName:player.name,pts,roundNum},hypothesisId:'D',timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
 
         // Only update if game is live or final (not pre-game)
         if (gameStatus === 'pre') continue;
@@ -488,11 +478,6 @@ async function updateEliminationByCSVAbbrev() {
     `SELECT DISTINCT ncaa_team FROM players`
   );
 
-  // #region agent log — Hypothesis B: which pool teams are failing to match eliminated ESPN teams?
-  console.log('[DEBUG][HypB] eliminated ESPN teams in bracket_slots:', JSON.stringify(elimTeams.map(t => ({ abbrev: t.team_abbrev, name: t.team_name, round: t.eliminated_in_round }))));
-  fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:updateEliminationByCSVAbbrev',message:'eliminated ESPN teams',data:{elimTeams:elimTeams.map(t=>({a:t.team_abbrev,n:t.team_name,r:t.eliminated_in_round}))},hypothesisId:'B',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
   for (const { ncaa_team } of poolTeams) {
     const normalized = normalizeTeamAbbrev(ncaa_team);
 
@@ -512,10 +497,6 @@ async function updateEliminationByCSVAbbrev() {
         eliminated_in_round = fuzzyResults[0].item.eliminated_in_round;
       }
     }
-
-    // #region agent log — Hypothesis B: log each pool team's match result
-    console.log(`[DEBUG][HypB] pool team "${ncaa_team}" → eliminated_in_round=${eliminated_in_round}, directMatch=${!!directMatch}`);
-    // #endregion
 
     // Use == null to catch both null and undefined, but NOT 0 (round 0 = First Four)
     if (eliminated_in_round == null) continue;
@@ -568,144 +549,14 @@ async function recomputeTotals() {
   `);
 }
 
-// ─── Alert helpers ────────────────────────────────────────────────────────────
-
-// Round label for alert messages
-const ROUND_NAMES = ['Play-In', 'R1', 'R2', 'Sweet 16', 'Elite Eight', 'Final Four', 'Championship'];
-
-// Snapshot player elimination status + team ranks before a scrape
-async function snapshotBeforeScrape() {
-  const { rows: players } = await pool.query(
-    `SELECT id, name, owner, ncaa_team, is_eliminated, total_pts FROM players`
-  );
-  const { rows: teams } = await pool.query(
-    `SELECT owner, total_pts FROM fantasy_teams ORDER BY total_pts DESC`
-  );
-  const rankMap = {};
-  teams.forEach((t, i) => { rankMap[t.owner] = i + 1; });
-
-  // Also snapshot current round scores to detect new milestones
-  const { rows: scores } = await pool.query(
-    `SELECT player_id, round_num, pts FROM player_round_scores WHERE pts IS NOT NULL`
-  );
-  const scoreMap = {};
-  scores.forEach(s => {
-    const key = `${s.player_id}-${s.round_num}`;
-    scoreMap[key] = s.pts;
-  });
-
-  return { players, rankMap, scoreMap };
-}
-
-// Compare before/after state and insert alerts for changes
-async function detectAndInsertAlerts(before, displayNames) {
-  const { players: beforePlayers, rankMap: beforeRanks, scoreMap: beforeScores } = before;
-
-  // Current state
-  const { rows: afterPlayers } = await pool.query(
-    `SELECT p.id, p.name, p.owner, p.ncaa_team, p.is_eliminated, p.total_pts,
-            COALESCE(ft.display_name, p.owner) AS display_name
-     FROM players p
-     JOIN fantasy_teams ft ON ft.owner = p.owner`
-  );
-  const { rows: afterTeams } = await pool.query(
-    `SELECT owner, total_pts, COALESCE(display_name, owner) AS display_name
-     FROM fantasy_teams ORDER BY total_pts DESC`
-  );
-  const afterRankMap = {};
-  afterTeams.forEach((t, i) => { afterRankMap[t.owner] = i + 1; });
-
-  const { rows: afterScores } = await pool.query(
-    `SELECT prs.player_id, prs.round_num, prs.pts,
-            p.name AS player_name, p.owner,
-            COALESCE(ft.display_name, p.owner) AS display_name
-     FROM player_round_scores prs
-     JOIN players p ON p.id = prs.player_id
-     JOIN fantasy_teams ft ON ft.owner = p.owner
-     WHERE prs.pts IS NOT NULL AND prs.blacked_out = FALSE`
-  );
-
-  const beforePlayerMap = {};
-  beforePlayers.forEach(p => { beforePlayerMap[p.id] = p; });
-
-  // #region agent log
-  let _alertCounts = { elimination: 0, milestone: 0, rank_change: 0 };
-  // #endregion
-
-  // Detect newly eliminated players
-  for (const player of afterPlayers) {
-    const prev = beforePlayerMap[player.id];
-    if (prev && !prev.is_eliminated && player.is_eliminated) {
-      await pool.query(
-        `INSERT INTO alerts (type, message, owner, player_name)
-         VALUES ('elimination', $1, $2, $3)`,
-        [
-          `${player.display_name} loses ${player.name} — ${player.ncaa_team} eliminated`,
-          player.owner,
-          player.name,
-        ]
-      );
-      // #region agent log
-      _alertCounts.elimination++;
-      // #endregion
-    }
-  }
-
-  // Detect scoring milestones (new score of 20+ in a round)
-  for (const score of afterScores) {
-    const key = `${score.player_id}-${score.round_num}`;
-    const prevPts = before.scoreMap[key];
-    // Fire if this is a newly recorded score (wasn't there before) and >= 20 pts
-    if (prevPts === undefined && score.pts >= 20) {
-      const roundLabel = ROUND_NAMES[score.round_num] || `Round ${score.round_num}`;
-      await pool.query(
-        `INSERT INTO alerts (type, message, owner, player_name)
-         VALUES ('milestone', $1, $2, $3)`,
-        [
-          `${score.player_name} drops ${score.pts} pts for ${score.display_name} in ${roundLabel}!`,
-          score.owner,
-          score.player_name,
-        ]
-      );
-      // #region agent log
-      _alertCounts.milestone++;
-      // #endregion
-    }
-  }
-
-  // Detect rank changes (only when scores have actually changed)
-  for (const team of afterTeams) {
-    const prevRank = beforeRanks[team.owner];
-    const newRank = afterRankMap[team.owner];
-    if (prevRank && newRank && prevRank !== newRank) {
-      const dir = newRank < prevRank ? `jumps to #${newRank}` : `falls to #${newRank}`;
-      await pool.query(
-        `INSERT INTO alerts (type, message, owner)
-         VALUES ('rank_change', $1, $2)`,
-        [`${team.display_name} ${dir} in the standings`, team.owner]
-      );
-      // #region agent log
-      _alertCounts.rank_change++;
-      // #endregion
-    }
-  }
-
-  // #region agent log — Hypothesis A: are rank_change alerts flooding each cycle?
-  console.log('[DEBUG][HypA] alerts fired this cycle:', JSON.stringify(_alertCounts));
-  fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:detectAndInsertAlerts',message:'alerts fired this cycle',data:_alertCounts,hypothesisId:'A',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-}
 
 // Main scrape function
 async function scrape() {
   console.log('[scraper] Starting scrape at', new Date().toISOString());
   try {
-    // Fix E: bulk-reset is_playing_now at start of every scrape cycle so players
+    // Bulk-reset is_playing_now at start of every scrape cycle so players
     // whose game ended but whose name didn't fuzzy-match don't stay green forever
     await pool.query(`UPDATE players SET is_playing_now = FALSE WHERE is_playing_now = TRUE`);
-
-    // Snapshot state before scrape for alert diffing
-    const beforeState = await snapshotBeforeScrape();
 
     const events = await fetchTournamentGames();
     console.log(`[scraper] Found ${events.length} tournament events`);
@@ -735,15 +586,6 @@ async function scrape() {
     await updateEliminationStatus();
     await updateEliminationByCSVAbbrev();
     await recomputeTotals();
-
-    // #region agent log — Hypothesis E: who still has is_playing_now=TRUE after scrape?
-    const { rows: _playingNow } = await pool.query(`SELECT p.name, p.ncaa_team, ft.display_name FROM players p JOIN fantasy_teams ft ON ft.owner = p.owner WHERE p.is_playing_now = TRUE`);
-    console.log('[DEBUG][HypE] players with is_playing_now=TRUE after scrape:', JSON.stringify(_playingNow));
-    fetch('http://127.0.0.1:7383/ingest/018218a6-95bf-41ca-a9ce-64d9139aaf85',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c5430a'},body:JSON.stringify({sessionId:'c5430a',location:'scraper.js:scrape:postRecompute',message:'is_playing_now after scrape',data:{players:_playingNow},hypothesisId:'E',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
-    // Detect and store alerts based on what changed
-    await detectAndInsertAlerts(beforeState);
 
     await pool.query(
       `INSERT INTO scrape_log (status, message) VALUES ('ok', $1)`,

@@ -7,12 +7,10 @@ const REFRESH_MS = 30_000;
 let state = {
   standings: [],
   games: [],
-  alerts: [],
   commentary: null,
   teamMappings: {},
   lastUpdated: null,
   hasLive: false,
-  seenAlertIds: new Set(JSON.parse(localStorage.getItem('seenAlertIds') || '[]')),
 };
 
 /* ─── Fetch helpers ───────────────────────────────────────────────────────── */
@@ -24,19 +22,17 @@ async function fetchJSON(url) {
 
 async function loadAll() {
   try {
-    const [standings, games, alerts, commentary, teamMappings, lastUpdated] = await Promise.all([
+    const [standings, games, commentary, teamMappings, lastUpdated] = await Promise.all([
       fetchJSON('/api/standings'),
       fetchJSON('/api/games'),
-      fetchJSON('/api/alerts?limit=30'),
       fetchJSON('/api/commentary'),
       fetchJSON('/api/team-mappings'),
       fetchJSON('/api/last-updated'),
     ]);
     state.standings = standings;
     state.games = games;
-    state.alerts = alerts;
     state.commentary = commentary;
-    state.teamMappings = teamMappings; // { csvAbbrev: { espn_abbrev, espn_name } }
+    state.teamMappings = teamMappings;
     state.lastUpdated = lastUpdated;
     state.hasLive = games.some(g => g.status === 'live');
     render();
@@ -48,7 +44,6 @@ async function loadAll() {
 /* ─── Render orchestrator ─────────────────────────────────────────────────── */
 function render() {
   renderHeader();
-  renderAlerts();
   renderLeaderboard();
   renderCommentary();
   renderCards();
@@ -72,97 +67,6 @@ function renderHeader() {
     liveEl.classList.add('hidden');
   }
 }
-
-/* ─── Alerts ──────────────────────────────────────────────────────────────── */
-const ALERT_ICONS = { elimination: '💀', milestone: '🔥', rank_change: '↑' };
-let alertDismissTimer = null;
-
-function renderAlerts() {
-  const alerts = state.alerts;
-  const banner = document.getElementById('alert-banner');
-  const layout = document.getElementById('main-layout');
-
-  // Find newest unseen alert
-  const unseen = alerts.filter(a => !state.seenAlertIds.has(a.id));
-  if (!unseen.length) {
-    banner.classList.add('hidden');
-    layout.classList.remove('alert-visible');
-    return;
-  }
-
-  const newest = unseen[0];
-  const icon = ALERT_ICONS[newest.type] || '•';
-  const moreCount = unseen.length - 1;
-
-  banner.className = `type-${newest.type}`;
-  document.getElementById('alert-icon').textContent = icon;
-  document.getElementById('alert-message').textContent = newest.message;
-
-  const moreEl = document.getElementById('alert-more');
-  if (moreCount > 0) {
-    moreEl.textContent = `+${moreCount} more`;
-    moreEl.classList.remove('hidden');
-  } else {
-    moreEl.classList.add('hidden');
-  }
-
-  layout.classList.add('alert-visible');
-
-  // Auto-dismiss after 8 seconds
-  clearTimeout(alertDismissTimer);
-  alertDismissTimer = setTimeout(() => dismissAlert(newest.id), 8000);
-
-  // Populate history drawer
-  renderAlertDrawer(alerts);
-}
-
-function dismissAlert(id) {
-  state.seenAlertIds.add(id);
-  localStorage.setItem('seenAlertIds', JSON.stringify([...state.seenAlertIds]));
-  fetch('/api/alerts/seen', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: [id] }),
-  }).catch(() => {});
-  renderAlerts();
-}
-
-function renderAlertDrawer(alerts) {
-  const list = document.getElementById('alert-drawer-list');
-  if (!alerts.length) {
-    list.innerHTML = '<div class="loading-msg" style="padding:12px">No alerts yet</div>';
-    return;
-  }
-  list.innerHTML = alerts.map(a => {
-    const icon = ALERT_ICONS[a.type] || '•';
-    const time = new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return `
-      <div class="alert-history-item type-${a.type}">
-        <span class="alert-history-icon">${icon}</span>
-        <div class="alert-history-text">
-          ${esc(a.message)}
-          <div class="alert-history-time">${time}</div>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-document.getElementById('alert-dismiss').addEventListener('click', () => {
-  const banner = document.getElementById('alert-banner');
-  const msgEl = document.getElementById('alert-message');
-  // Find the alert with this message and dismiss it
-  const match = state.alerts.find(a => a.message === msgEl.textContent);
-  if (match) dismissAlert(match.id);
-  else { banner.classList.add('hidden'); }
-});
-
-document.getElementById('alert-more').addEventListener('click', () => {
-  document.getElementById('alert-drawer').classList.toggle('hidden');
-});
-
-document.getElementById('alert-drawer-close').addEventListener('click', () => {
-  document.getElementById('alert-drawer').classList.add('hidden');
-});
 
 /* ─── Commentary ──────────────────────────────────────────────────────────── */
 function renderCommentary() {
