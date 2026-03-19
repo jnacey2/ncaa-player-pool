@@ -118,6 +118,13 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE team_mappings ADD COLUMN IF NOT EXISTS confirmed BOOLEAN DEFAULT FALSE;
   `);
+  // Restore any round-0 cells that were blacked out for non-First-Four participants.
+  // Only truly eliminated players should have blacked-out cells.
+  await pool.query(`
+    UPDATE player_round_scores SET blacked_out = FALSE
+    WHERE round_num = 0 AND pts IS NULL AND blacked_out = TRUE
+    AND player_id IN (SELECT id FROM players WHERE is_eliminated = FALSE)
+  `);
   // Fix play-in scores incorrectly stored as round 6 due to ESPN label matching bug.
   // Strategy: for any player who has pts in round_num=6 but the Championship
   // hasn't happened yet (Apr 7), copy those pts into their round_num=0 row,

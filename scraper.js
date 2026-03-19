@@ -645,16 +645,6 @@ async function scrape() {
     await cleanupFalseEliminations();
     await recomputeTotals();
 
-    // Fix 1: black out round 0 for any player who never scored there, once all
-    // First Four games are final (non-participants would inflate ceiling forever)
-    await pool.query(`
-      UPDATE player_round_scores SET blacked_out = TRUE
-      WHERE round_num = 0 AND pts IS NULL AND blacked_out = FALSE
-      AND NOT EXISTS (
-        SELECT 1 FROM games WHERE round_num = 0 AND status != 'final'
-      )
-    `);
-
     await pool.query(
       `INSERT INTO scrape_log (status, message) VALUES ('ok', $1)`,
       [`Scraped ${events.length} events`]
