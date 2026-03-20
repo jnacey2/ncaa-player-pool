@@ -10,7 +10,7 @@ const DISPLAY_NAMES = {
   'Bradfrey':   'Frey',
   'DamatoN':    "D'Amato",
   'DAvart':     'Avart',
-  'Dgross21':   'Gross',
+  'Dgross21':   'GrossBot',
   'Dignazio':   'Dignazio',
   'Haron':      'Haron',
   'jmiano':     'Miano',
