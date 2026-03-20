@@ -242,6 +242,8 @@ async function upsertGames(events) {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (espn_game_id) DO UPDATE SET
          round_num = EXCLUDED.round_num,
+         home_team = EXCLUDED.home_team,
+         away_team = EXCLUDED.away_team,
          home_score = EXCLUDED.home_score,
          away_score = EXCLUDED.away_score,
          status = EXCLUDED.status,
