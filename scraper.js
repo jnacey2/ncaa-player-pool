@@ -247,6 +247,8 @@ async function upsertGames(events) {
          home_score = EXCLUDED.home_score,
          away_score = EXCLUDED.away_score,
          status = EXCLUDED.status,
+         tip_time = EXCLUDED.tip_time,
+         game_date = EXCLUDED.game_date,
          display_clock = EXCLUDED.display_clock,
          period = EXCLUDED.period,
          tv_network = COALESCE(EXCLUDED.tv_network, games.tv_network),
