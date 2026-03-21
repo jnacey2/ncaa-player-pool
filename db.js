@@ -145,6 +145,12 @@ async function initSchema() {
     )
   `);
 
+  // ESPN name overrides for shortened/preferred names
+  await pool.query(`
+    UPDATE players SET espn_name = 'MJ Collins'
+    WHERE LOWER(name) = 'michael collins' AND LOWER(ncaa_team) = 'utst'
+    AND (espn_name IS NULL OR espn_name != 'MJ Collins')
+  `);
   // ESPN name override: Nicholas Boyd (Wisc) → "Nick Boyd" (ESPN uses shortened first name)
   await pool.query(`
     UPDATE players SET espn_name = 'Nick Boyd'
