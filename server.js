@@ -176,6 +176,123 @@ app.post('/api/mapping/refresh-names', async (req, res) => {
   }
 });
 
+// GET /api/analytics — computed from real DB data (not LLM-generated)
+app.get('/api/analytics', async (req, res) => {
+  try {
+    // Top scorers: individual players ranked by total_pts
+    const { rows: playerLeaders } = await pool.query(`
+      SELECT p.name, p.ncaa_team AS team,
+             COALESCE(ft.display_name, p.owner) AS owner,
+             p.total_pts AS pts, p.is_eliminated
+      FROM players p
+      JOIN fantasy_teams ft ON ft.owner = p.owner
+      WHERE p.total_pts > 0
+      ORDER BY p.total_pts DESC
+      LIMIT 10
+    `);
+
+    // Team efficiency: per-owner stats
+    const { rows: teamEfficiency } = await pool.query(`
+      SELECT
+        COALESCE(ft.display_name, ft.owner) AS owner,
+        ft.total_pts,
+        ft.players_remaining,
+        (SELECT COUNT(*) FROM players p2
+         JOIN player_round_scores prs ON prs.player_id = p2.id
+         WHERE p2.owner = ft.owner AND prs.pts IS NOT NULL
+         GROUP BY p2.owner) AS players_played,
+        CASE
+          WHEN (SELECT COUNT(DISTINCT p3.id) FROM players p3
+                JOIN player_round_scores prs2 ON prs2.player_id = p3.id
+                WHERE p3.owner = ft.owner AND prs2.pts IS NOT NULL) > 0
+          THEN ROUND(ft.total_pts::numeric / (
+            SELECT COUNT(DISTINCT p3.id) FROM players p3
+            JOIN player_round_scores prs2 ON prs2.player_id = p3.id
+            WHERE p3.owner = ft.owner AND prs2.pts IS NOT NULL
+          ), 1)
+          ELSE 0
+        END AS avg_per_player
+      FROM fantasy_teams ft
+      ORDER BY avg_per_player DESC
+    `);
+
+    // Round breakdown: actual pts per round from player_round_scores
+    const { rows: roundBreakdown } = await pool.query(`
+      SELECT
+        prs.round_num,
+        SUM(prs.pts) AS total_pts,
+        COUNT(DISTINCT prs.player_id) AS players_scored
+      FROM player_round_scores prs
+      WHERE prs.pts IS NOT NULL AND prs.blacked_out = FALSE
+      GROUP BY prs.round_num
+      ORDER BY prs.round_num
+    `);
+
+    // Top scorer per round
+    const { rows: roundTopScorers } = await pool.query(`
+      SELECT DISTINCT ON (prs.round_num)
+        prs.round_num, prs.pts AS top_pts,
+        p.name AS top_scorer, p.ncaa_team AS top_team,
+        COALESCE(ft.display_name, p.owner) AS top_owner
+      FROM player_round_scores prs
+      JOIN players p ON p.id = prs.player_id
+      JOIN fantasy_teams ft ON ft.owner = p.owner
+      WHERE prs.pts IS NOT NULL AND prs.blacked_out = FALSE
+      ORDER BY prs.round_num, prs.pts DESC
+    `);
+
+    const ROUND_NAMES = ['Play-In', 'R1', 'R2', 'S16', 'E8', 'F4', 'Champ'];
+    const roundSummary = roundBreakdown.map(r => {
+      const topScorer = roundTopScorers.find(ts => ts.round_num === r.round_num);
+      return {
+        round: ROUND_NAMES[r.round_num] || `Round ${r.round_num}`,
+        round_num: r.round_num,
+        total_pts: parseInt(r.total_pts),
+        players_scored: parseInt(r.players_scored),
+        top_scorer: topScorer?.top_scorer || null,
+        top_scorer_team: topScorer?.top_team || null,
+        top_scorer_pts: topScorer?.top_pts || null,
+        top_owner: topScorer?.top_owner || null,
+      };
+    });
+
+    // Elimination impact: who lost players
+    const { rows: elimImpact } = await pool.query(`
+      SELECT
+        COALESCE(ft.display_name, p.owner) AS owner,
+        COUNT(*) AS players_lost,
+        ARRAY_AGG(p.name ORDER BY p.name) AS names_lost
+      FROM players p
+      JOIN fantasy_teams ft ON ft.owner = p.owner
+      WHERE p.is_eliminated = TRUE
+      GROUP BY ft.display_name, p.owner
+      ORDER BY COUNT(*) DESC
+    `);
+
+    // Pool-wide stats
+    const { rows: poolStats } = await pool.query(`
+      SELECT
+        (SELECT SUM(total_pts) FROM fantasy_teams) AS pool_total_pts,
+        (SELECT COUNT(*) FROM players WHERE is_eliminated = TRUE) AS total_eliminated,
+        (SELECT COUNT(*) FROM players WHERE is_eliminated = FALSE) AS total_alive,
+        (SELECT COUNT(DISTINCT player_id) FROM player_round_scores WHERE pts IS NOT NULL) AS total_players_scored,
+        (SELECT COUNT(*) FROM games WHERE status = 'final') AS games_completed,
+        (SELECT COUNT(*) FROM games WHERE status = 'live') AS games_live
+    `);
+
+    res.json({
+      pool_stats: poolStats[0] || {},
+      player_leaders: playerLeaders,
+      team_efficiency: teamEfficiency,
+      round_summary: roundSummary,
+      elimination_impact: elimImpact,
+    });
+  } catch (err) {
+    console.error('/api/analytics error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/team-mappings — learned CSV abbrev → ESPN team name mappings
 app.get('/api/team-mappings', async (req, res) => {
   try {
