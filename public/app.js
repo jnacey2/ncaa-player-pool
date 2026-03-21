@@ -46,6 +46,7 @@ function render() {
   renderHeader();
   renderLeaderboard();
   renderCommentary();
+  renderAnalytics();
   renderCards();
   renderGames();
 }
@@ -130,12 +131,145 @@ function renderCommentary() {
   }
 }
 
+/* ─── Analytics Dashboard ─────────────────────────────────────────────────── */
+function renderAnalytics() {
+  const analytics = state.commentary?.analytics;
+  const container = document.getElementById('analytics-dashboard');
+  if (!analytics) {
+    container.innerHTML = '<div class="loading-msg">Analytics generate with commentary. Click Regenerate to generate now.</div>';
+    return;
+  }
+
+  let html = '';
+
+  // Player Leaders
+  if (analytics.player_leaders?.length) {
+    html += `<div class="analytics-section">
+      <div class="analytics-section-title">Top Scorers</div>
+      <table class="analytics-table">
+        <thead><tr><th>#</th><th>Player</th><th>School</th><th>Owner</th><th class="right">Pts</th></tr></thead>
+        <tbody>${analytics.player_leaders.map((p, i) => `
+          <tr>
+            <td class="dimmed">${p.rank || i + 1}</td>
+            <td class="bold">${esc(p.name)}</td>
+            <td class="dimmed">${esc(p.team)}</td>
+            <td class="gold">${esc(p.owner)}</td>
+            <td class="right bold gold">${p.pts}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  // Two-column grid for efficiency + round summary
+  html += '<div class="analytics-grid">';
+
+  // Team Efficiency
+  if (analytics.team_efficiency?.length) {
+    html += `<div class="analytics-section">
+      <div class="analytics-section-title">Team Efficiency</div>
+      <table class="analytics-table">
+        <thead><tr><th>Owner</th><th class="right">Played</th><th class="right">Avg/Player</th><th class="right">Total</th></tr></thead>
+        <tbody>${analytics.team_efficiency.map(t => `
+          <tr>
+            <td class="bold">${esc(t.owner)}</td>
+            <td class="right">${t.players_played || 0}</td>
+            <td class="right gold">${(t.avg_per_player || 0).toFixed(1)}</td>
+            <td class="right bold">${t.total_pts || 0}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  // Round Summary
+  if (analytics.round_summary?.length) {
+    html += `<div class="analytics-section">
+      <div class="analytics-section-title">Round Breakdown</div>
+      <table class="analytics-table">
+        <thead><tr><th>Round</th><th class="right">Total Pts</th><th>Top Scorer</th><th class="right">Pts</th></tr></thead>
+        <tbody>${analytics.round_summary.map(r => `
+          <tr>
+            <td class="bold">${esc(r.round)}</td>
+            <td class="right">${r.total_pts || 0}</td>
+            <td>${esc(r.top_scorer || '—')} <span class="dimmed">(${esc(r.top_owner || '')})</span></td>
+            <td class="right gold bold">${r.top_scorer_pts || '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  html += '</div>'; // close analytics-grid
+
+  // Momentum
+  if (analytics.momentum?.length) {
+    html += `<div class="analytics-section">
+      <div class="analytics-section-title">Momentum</div>
+      <table class="analytics-table">
+        <thead><tr><th>Owner</th><th>Trend</th><th>Reason</th></tr></thead>
+        <tbody>${analytics.momentum.map(m => {
+          const arrow = m.trend === 'up' ? '↑' : m.trend === 'down' ? '↓' : '→';
+          const trendClass = `trend-${m.trend}`;
+          return `<tr>
+            <td class="bold">${esc(m.owner)}</td>
+            <td class="${trendClass}"><span class="trend-arrow">${arrow}</span>${m.trend}</td>
+            <td class="dimmed">${esc(m.reason)}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  // Elimination Impact
+  if (analytics.elimination_impact?.length) {
+    html += `<div class="analytics-section">
+      <div class="analytics-section-title">Elimination Impact</div>
+      <table class="analytics-table">
+        <thead><tr><th>Owner</th><th class="right">Lost</th><th>Players Lost</th><th>Impact</th></tr></thead>
+        <tbody>${analytics.elimination_impact.map(e => `
+          <tr>
+            <td class="bold">${esc(e.owner)}</td>
+            <td class="right bold" style="color:var(--red)">${e.players_lost}</td>
+            <td class="dimmed">${(e.names_lost || []).map(n => esc(n)).join(', ')}</td>
+            <td class="dimmed">${esc(e.impact || '')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  // Head-to-Head Matchups
+  if (analytics.matchups?.length) {
+    html += `<div class="analytics-section">
+      <div class="analytics-section-title">Matchups to Watch</div>
+      ${analytics.matchups.map(m => `
+        <div class="matchup-card">
+          <div class="matchup-teams">${esc(m.team1)} vs ${esc(m.team2)}</div>
+          <div class="matchup-analysis">${esc(m.analysis)}</div>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  container.innerHTML = html || '<div class="loading-msg">No analytics data available yet.</div>';
+}
+
+/* ─── Commentary + Analytics Tab Switching ─────────────────────────────────── */
+document.querySelectorAll('.commentary-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.commentary-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.commentary-tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
 document.getElementById('commentary-regen-btn').addEventListener('click', async function () {
   this.disabled = true;
   this.textContent = '↺ Generating...';
   try {
     await fetch('/api/commentary/regenerate', { method: 'POST' });
-    // Poll every 3s for up to 30s waiting for the new commentary
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
@@ -144,7 +278,7 @@ document.getElementById('commentary-regen-btn').addEventListener('click', async 
       if (commentary.generated_at !== prevTime || attempts > 10) {
         state.commentary = commentary;
         renderCommentary();
-        // Refresh blurbs on cards
+        renderAnalytics();
         renderCards();
         clearInterval(poll);
         this.disabled = false;

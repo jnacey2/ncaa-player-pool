@@ -107,6 +107,36 @@ html, body {
   margin-bottom: 14px;
 }
 
+/* Commentary tab buttons */
+#commentary-tabs {
+  display: flex;
+  gap: 0;
+}
+
+.commentary-tab {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.commentary-tab:hover { color: var(--white); }
+
+.commentary-tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+.commentary-tab-content { display: none; }
+.commentary-tab-content.active { display: block; }
+
 #commentary-header .section-title { margin-bottom: 0; }
 
 #commentary-meta {
@@ -184,6 +214,104 @@ html, body {
 
 @media (max-width: 640px) {
   #commentary-picks { grid-template-columns: 1fr; }
+}
+
+/* ─── Analytics Dashboard ─────────────────────────────────────────────────── */
+#analytics-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.analytics-section {
+  background: rgba(10, 22, 40, 0.4);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.analytics-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding: 10px 14px 6px;
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.analytics-table th {
+  text-align: left;
+  padding: 4px 12px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.analytics-table th.right { text-align: right; }
+
+.analytics-table td {
+  padding: 5px 12px;
+  border-bottom: 1px solid rgba(30, 45, 80, 0.4);
+  vertical-align: middle;
+}
+
+.analytics-table td.right { text-align: right; font-family: var(--font-mono); }
+.analytics-table td.bold { font-weight: 700; }
+.analytics-table td.gold { color: var(--gold-bright); }
+.analytics-table td.green { color: var(--green); }
+.analytics-table td.dimmed { color: var(--gray); }
+
+.analytics-table tr:last-child td { border-bottom: none; }
+.analytics-table tbody tr:hover { background: rgba(22, 48, 94, 0.2); }
+
+/* Trend arrows */
+.trend-up { color: var(--green); }
+.trend-down { color: var(--red); }
+.trend-flat { color: var(--gray); }
+
+.trend-arrow {
+  font-size: 14px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+/* Matchup cards */
+.matchup-card {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.matchup-card:last-child { border-bottom: none; }
+
+.matchup-teams {
+  font-weight: 700;
+  color: var(--gold-bright);
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.matchup-analysis { color: var(--gray); font-size: 12px; }
+
+/* Two-column layout for analytics on wider screens */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .analytics-grid { grid-template-columns: 1fr; }
 }
 
 /* Per-team blurb on cards */

@@ -146,6 +146,51 @@ Return ONLY valid JSON in this exact format, with no markdown code fences or ext
 }`;
 }
 
+function buildAnalyticsPrompt(standingsSummary) {
+  return `You are a data analyst for the "Convertibles NCAA Tournament Player Pool 2026" — a fantasy basketball pool where 13 friends drafted 10 players each. Scoring = actual basketball points scored in each tournament game.
+
+${standingsSummary}
+
+Analyze this data and produce a structured analytics report. Be precise with numbers — use the data provided, do not fabricate stats. Where data is insufficient (e.g. no games played yet), say so honestly.
+
+Return ONLY valid JSON:
+{
+  "player_leaders": [
+    {"rank": 1, "name": "Player Name", "team": "NCAA Team", "owner": "Display Name", "pts": 22},
+    ... (top 10 scorers across all owners, sorted by pts desc)
+  ],
+  "team_efficiency": [
+    {"owner": "Display Name", "total_pts": 44, "players_played": 3, "avg_per_player": 14.7, "players_remaining": 9},
+    ... (all 13 owners, sorted by avg_per_player desc)
+  ],
+  "round_summary": [
+    {"round": "Play-In", "total_pts": 30, "games_completed": 2, "top_scorer": "Player Name", "top_scorer_pts": 25, "top_owner": "Display Name"},
+    {"round": "R1", "total_pts": 450, "games_completed": 16, "top_scorer": "Player Name", "top_scorer_pts": 28, "top_owner": "Display Name"},
+    ... (only rounds that have at least some completed games)
+  ],
+  "elimination_impact": [
+    {"owner": "Display Name", "players_lost": 2, "names_lost": ["Player 1", "Player 2"], "impact": "Lost their highest-ceiling player early"},
+    ... (only owners who have lost players, sorted by players_lost desc)
+  ],
+  "momentum": [
+    {"owner": "Display Name", "trend": "up", "reason": "3 players scored 15+ in R1"},
+    {"owner": "Display Name", "trend": "down", "reason": "Lost 2 players and top scorer only had 4 pts"},
+    ... (all 13 owners, sorted: up first, then flat, then down)
+  ],
+  "matchups": [
+    {"team1": "Display Name 1", "team2": "Display Name 2", "analysis": "Both have 8 players alive but Team1 has the higher ceiling with Duke players still in"},
+    ... (2-3 interesting head-to-head matchups worth watching)
+  ]
+}`;
+}
+
+function extractJSON(raw) {
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('No JSON object found in Claude response');
+  return JSON.parse(raw.slice(start, end + 1));
+}
+
 async function generateCommentary() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -153,41 +198,49 @@ async function generateCommentary() {
     return;
   }
 
-  console.log('[commentary] Generating commentary with Claude...');
+  console.log('[commentary] Generating commentary + analytics with Claude...');
   try {
     const standingsSummary = await buildStandingsSummary();
-    const prompt = buildPrompt(standingsSummary);
-
     const client = new Anthropic({ apiKey });
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 2500,
-      messages: [{ role: 'user', content: prompt }],
-    });
 
-    const raw = message.content[0]?.text || '';
+    // Generate commentary and analytics in parallel
+    const [commentaryResult, analyticsResult] = await Promise.all([
+      client.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 2500,
+        messages: [{ role: 'user', content: buildPrompt(standingsSummary) }],
+      }),
+      client.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 3000,
+        messages: [{ role: 'user', content: buildAnalyticsPrompt(standingsSummary) }],
+      }),
+    ]);
 
-    // Extract the outermost JSON object regardless of surrounding text or markdown
-    const start = raw.indexOf('{');
-    const end = raw.lastIndexOf('}');
-    if (start === -1 || end === -1) throw new Error('No JSON object found in Claude response');
-    const parsed = JSON.parse(raw.slice(start, end + 1));
-
-    if (!parsed.narrative || !parsed.team_blurbs) {
+    const commentaryParsed = extractJSON(commentaryResult.content[0]?.text || '');
+    if (!commentaryParsed.narrative || !commentaryParsed.team_blurbs) {
       throw new Error('Claude response missing narrative or team_blurbs');
     }
 
+    let analyticsParsed = null;
+    try {
+      analyticsParsed = extractJSON(analyticsResult.content[0]?.text || '');
+    } catch (err) {
+      console.error('[commentary] Analytics parse error (non-fatal):', err.message);
+    }
+
     await pool.query(
-      `INSERT INTO commentary (narrative, team_blurbs, top_3, bottom_3) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO commentary (narrative, team_blurbs, top_3, bottom_3, analytics) VALUES ($1, $2, $3, $4, $5)`,
       [
-        parsed.narrative,
-        JSON.stringify(parsed.team_blurbs),
-        JSON.stringify(parsed.top_3 || []),
-        JSON.stringify(parsed.bottom_3 || []),
+        commentaryParsed.narrative,
+        JSON.stringify(commentaryParsed.team_blurbs),
+        JSON.stringify(commentaryParsed.top_3 || []),
+        JSON.stringify(commentaryParsed.bottom_3 || []),
+        analyticsParsed ? JSON.stringify(analyticsParsed) : null,
       ]
     );
 
-    console.log('[commentary] Commentary saved successfully');
+    console.log('[commentary] Commentary + analytics saved successfully');
   } catch (err) {
     console.error('[commentary] Error generating commentary:', err.message);
   }

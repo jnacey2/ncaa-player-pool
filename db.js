@@ -113,6 +113,9 @@ async function initSchema() {
     ALTER TABLE commentary ADD COLUMN IF NOT EXISTS bottom_3 JSONB;
   `);
   await pool.query(`
+    ALTER TABLE commentary ADD COLUMN IF NOT EXISTS analytics JSONB;
+  `);
+  await pool.query(`
     ALTER TABLE players ADD COLUMN IF NOT EXISTS espn_name VARCHAR(200);
   `);
   await pool.query(`
