@@ -145,36 +145,45 @@ function renderAnalytics() {
   // Player Leaders
   if (analytics.player_leaders?.length) {
     html += `<div class="analytics-section">
-      <div class="analytics-section-title">Top Scorers</div>
+      <div class="analytics-section-header">
+        <span class="analytics-section-icon">🏀</span>
+        <span class="analytics-section-title">Top Scorers</span>
+      </div>
       <table class="analytics-table">
-        <thead><tr><th>#</th><th>Player</th><th>School</th><th>Owner</th><th class="right">Pts</th></tr></thead>
-        <tbody>${analytics.player_leaders.map((p, i) => `
-          <tr>
-            <td class="dimmed">${p.rank || i + 1}</td>
+        <thead><tr><th></th><th>Player</th><th>School</th><th>Owner</th><th class="right">Pts</th></tr></thead>
+        <tbody>${analytics.player_leaders.map((p, i) => {
+          const rank = p.rank || i + 1;
+          const rankClass = rank <= 3 ? ` rank-${rank}` : '';
+          return `<tr>
+            <td class="rank-col${rankClass}">${rank}</td>
             <td class="bold">${esc(p.name)}</td>
             <td class="dimmed">${esc(p.team)}</td>
             <td class="gold">${esc(p.owner)}</td>
-            <td class="right bold gold">${p.pts}</td>
-          </tr>`).join('')}
+            <td class="right big gold">${p.pts}</td>
+          </tr>`;
+        }).join('')}
         </tbody>
       </table>
     </div>`;
   }
 
-  // Two-column grid for efficiency + round summary
+  // Two-column grid
   html += '<div class="analytics-grid">';
 
   // Team Efficiency
   if (analytics.team_efficiency?.length) {
     html += `<div class="analytics-section">
-      <div class="analytics-section-title">Team Efficiency</div>
+      <div class="analytics-section-header">
+        <span class="analytics-section-icon">📊</span>
+        <span class="analytics-section-title">Team Efficiency</span>
+      </div>
       <table class="analytics-table">
         <thead><tr><th>Owner</th><th class="right">Played</th><th class="right">Avg/Player</th><th class="right">Total</th></tr></thead>
         <tbody>${analytics.team_efficiency.map(t => `
           <tr>
             <td class="bold">${esc(t.owner)}</td>
-            <td class="right">${t.players_played || 0}</td>
-            <td class="right gold">${(t.avg_per_player || 0).toFixed(1)}</td>
+            <td class="right dimmed">${t.players_played || 0}</td>
+            <td class="right gold bold">${(t.avg_per_player || 0).toFixed(1)}</td>
             <td class="right bold">${t.total_pts || 0}</td>
           </tr>`).join('')}
         </tbody>
@@ -185,35 +194,40 @@ function renderAnalytics() {
   // Round Summary
   if (analytics.round_summary?.length) {
     html += `<div class="analytics-section">
-      <div class="analytics-section-title">Round Breakdown</div>
+      <div class="analytics-section-header">
+        <span class="analytics-section-icon">📋</span>
+        <span class="analytics-section-title">Round Breakdown</span>
+      </div>
       <table class="analytics-table">
-        <thead><tr><th>Round</th><th class="right">Total Pts</th><th>Top Scorer</th><th class="right">Pts</th></tr></thead>
+        <thead><tr><th>Round</th><th class="right">Pool Pts</th><th>Top Scorer</th><th class="right">Pts</th></tr></thead>
         <tbody>${analytics.round_summary.map(r => `
           <tr>
             <td class="bold">${esc(r.round)}</td>
-            <td class="right">${r.total_pts || 0}</td>
+            <td class="right bold">${r.total_pts || 0}</td>
             <td>${esc(r.top_scorer || '—')} <span class="dimmed">(${esc(r.top_owner || '')})</span></td>
-            <td class="right gold bold">${r.top_scorer_pts || '—'}</td>
+            <td class="right big gold">${r.top_scorer_pts || '—'}</td>
           </tr>`).join('')}
         </tbody>
       </table>
     </div>`;
   }
 
-  html += '</div>'; // close analytics-grid
+  html += '</div>';
 
-  // Momentum
+  // Momentum — full width
   if (analytics.momentum?.length) {
     html += `<div class="analytics-section">
-      <div class="analytics-section-title">Momentum</div>
+      <div class="analytics-section-header">
+        <span class="analytics-section-icon">📈</span>
+        <span class="analytics-section-title">Momentum Tracker</span>
+      </div>
       <table class="analytics-table">
-        <thead><tr><th>Owner</th><th>Trend</th><th>Reason</th></tr></thead>
+        <thead><tr><th>Owner</th><th>Trend</th><th>Analysis</th></tr></thead>
         <tbody>${analytics.momentum.map(m => {
-          const arrow = m.trend === 'up' ? '↑' : m.trend === 'down' ? '↓' : '→';
-          const trendClass = `trend-${m.trend}`;
+          const arrow = m.trend === 'up' ? '▲' : m.trend === 'down' ? '▼' : '▸';
           return `<tr>
             <td class="bold">${esc(m.owner)}</td>
-            <td class="${trendClass}"><span class="trend-arrow">${arrow}</span>${m.trend}</td>
+            <td><span class="trend-badge ${m.trend}"><span class="arrow">${arrow}</span> ${m.trend.toUpperCase()}</span></td>
             <td class="dimmed">${esc(m.reason)}</td>
           </tr>`;
         }).join('')}
@@ -222,18 +236,23 @@ function renderAnalytics() {
     </div>`;
   }
 
+  // Two-column grid for eliminations + matchups
+  html += '<div class="analytics-grid">';
+
   // Elimination Impact
   if (analytics.elimination_impact?.length) {
     html += `<div class="analytics-section">
-      <div class="analytics-section-title">Elimination Impact</div>
+      <div class="analytics-section-header">
+        <span class="analytics-section-icon">💀</span>
+        <span class="analytics-section-title">Elimination Impact</span>
+      </div>
       <table class="analytics-table">
-        <thead><tr><th>Owner</th><th class="right">Lost</th><th>Players Lost</th><th>Impact</th></tr></thead>
+        <thead><tr><th>Owner</th><th class="right">Lost</th><th>Players</th></tr></thead>
         <tbody>${analytics.elimination_impact.map(e => `
           <tr>
             <td class="bold">${esc(e.owner)}</td>
-            <td class="right bold" style="color:var(--red)">${e.players_lost}</td>
+            <td class="right big" style="color:var(--red)">${e.players_lost}</td>
             <td class="dimmed">${(e.names_lost || []).map(n => esc(n)).join(', ')}</td>
-            <td class="dimmed">${esc(e.impact || '')}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -243,14 +262,23 @@ function renderAnalytics() {
   // Head-to-Head Matchups
   if (analytics.matchups?.length) {
     html += `<div class="analytics-section">
-      <div class="analytics-section-title">Matchups to Watch</div>
+      <div class="analytics-section-header">
+        <span class="analytics-section-icon">⚔️</span>
+        <span class="analytics-section-title">Matchups to Watch</span>
+      </div>
       ${analytics.matchups.map(m => `
         <div class="matchup-card">
-          <div class="matchup-teams">${esc(m.team1)} vs ${esc(m.team2)}</div>
+          <div class="matchup-teams">
+            <span>${esc(m.team1)}</span>
+            <span class="matchup-vs">vs</span>
+            <span>${esc(m.team2)}</span>
+          </div>
           <div class="matchup-analysis">${esc(m.analysis)}</div>
         </div>`).join('')}
     </div>`;
   }
+
+  html += '</div>';
 
   container.innerHTML = html || '<div class="loading-msg">No analytics data available yet.</div>';
 }

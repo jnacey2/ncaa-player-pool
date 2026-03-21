@@ -220,23 +220,35 @@ html, body {
 #analytics-dashboard {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .analytics-section {
-  background: rgba(10, 22, 40, 0.4);
+  background: var(--navy);
   border: 1px solid var(--card-border);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
 }
 
+.analytics-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.analytics-section-icon {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
 .analytics-section-title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--gold);
-  padding: 10px 14px 6px;
 }
 
 .analytics-table {
@@ -247,67 +259,107 @@ html, body {
 
 .analytics-table th {
   text-align: left;
-  padding: 4px 12px;
+  padding: 8px 14px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--gray);
-  border-bottom: 1px solid var(--card-border);
+  background: rgba(10, 22, 40, 0.5);
 }
 
 .analytics-table th.right { text-align: right; }
 
 .analytics-table td {
-  padding: 5px 12px;
-  border-bottom: 1px solid rgba(30, 45, 80, 0.4);
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(30, 45, 80, 0.3);
   vertical-align: middle;
+  line-height: 1.4;
 }
 
 .analytics-table td.right { text-align: right; font-family: var(--font-mono); }
 .analytics-table td.bold { font-weight: 700; }
 .analytics-table td.gold { color: var(--gold-bright); }
 .analytics-table td.green { color: var(--green); }
-.analytics-table td.dimmed { color: var(--gray); }
+.analytics-table td.dimmed { color: var(--gray); font-size: 11px; }
+.analytics-table td.big { font-size: 15px; font-weight: 700; }
 
 .analytics-table tr:last-child td { border-bottom: none; }
-.analytics-table tbody tr:hover { background: rgba(22, 48, 94, 0.2); }
+.analytics-table tbody tr:hover { background: rgba(201, 162, 39, 0.04); }
 
-/* Trend arrows */
+.analytics-table .rank-col {
+  width: 32px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gray-dark);
+  font-weight: 700;
+}
+
+.analytics-table .rank-1 { color: var(--gold-bright); }
+.analytics-table .rank-2 { color: #c0c0c0; }
+.analytics-table .rank-3 { color: #cd7f32; }
+
+/* Trend indicators */
 .trend-up { color: var(--green); }
 .trend-down { color: var(--red); }
 .trend-flat { color: var(--gray); }
 
-.trend-arrow {
-  font-size: 14px;
+.trend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 700;
-  margin-right: 4px;
+  letter-spacing: 0.03em;
 }
+
+.trend-badge.up { background: rgba(34, 197, 94, 0.12); color: var(--green); }
+.trend-badge.down { background: rgba(224, 53, 53, 0.12); color: var(--red); }
+.trend-badge.flat { background: rgba(138, 150, 170, 0.1); color: var(--gray); }
+
+.trend-badge .arrow { font-size: 12px; }
 
 /* Matchup cards */
 .matchup-card {
-  padding: 10px 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--card-border);
-  font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .matchup-card:last-child { border-bottom: none; }
 
 .matchup-teams {
   font-weight: 700;
-  color: var(--gold-bright);
-  margin-bottom: 4px;
+  color: var(--white);
+  margin-bottom: 6px;
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.matchup-analysis { color: var(--gray); font-size: 12px; }
+.matchup-vs {
+  font-size: 10px;
+  color: var(--gray);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.matchup-analysis {
+  color: rgba(240, 244, 255, 0.7);
+  font-size: 12px;
+  line-height: 1.6;
+}
 
 /* Two-column layout for analytics on wider screens */
 .analytics-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 20px;
 }
 
 @media (max-width: 900px) {

@@ -83,13 +83,13 @@ async function buildStandingsSummary() {
     summary += `#${rank} ${team.display_name}: ${team.total_pts} pts, ${team.players_remaining}/10 players alive\n`;
 
     if (played.length > 0) {
-      summary += `  Played so far: ${played.map(p => `${p.name} (${p.total_pts} pts)`).join(', ')}\n`;
+      summary += `  Played so far: ${played.map(p => `${p.name} [${p.ncaa_team}] (${p.total_pts} pts)`).join(', ')}\n`;
     }
     if (waiting.length > 0) {
-      summary += `  Waiting to play: ${waiting.map(p => p.name).join(', ')}\n`;
+      summary += `  Waiting to play: ${waiting.map(p => `${p.name} [${p.ncaa_team}]`).join(', ')}\n`;
     }
     if (eliminated.length > 0) {
-      summary += `  Eliminated: ${eliminated.map(p => p.name).join(', ')}\n`;
+      summary += `  Eliminated: ${eliminated.map(p => `${p.name} [${p.ncaa_team}]`).join(', ')}\n`;
     }
     if (topScorer && topScorer.total_pts > 0) {
       summary += `  Top scorer so far: ${topScorer.name} (${topScorer.total_pts} pts)\n`;
