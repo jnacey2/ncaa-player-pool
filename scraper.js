@@ -361,6 +361,13 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
         // Team validation: reject if player's team doesn't match the box score section
         if (player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
 
+        // Last-name validation: "Alex Lloyd" should not match "Alex Condon" just because
+        // they share a first name and are on the same team. Extract last word of each name
+        // and require they match (case-insensitive).
+        const espnLast = espnName.split(/\s+/).pop()?.toLowerCase() || '';
+        const playerLast = (player.espn_name || player.name).split(/\s+/).pop()?.toLowerCase() || '';
+        if (espnLast && playerLast && espnLast !== playerLast) continue;
+
         // #region agent log — log Florida matches to debug Condon
         if (csvTeam.toLowerCase() === 'fla') {
           console.log(`[DEBUG-FLA] espn="${espnName}" → matched="${player.name}" team="${player.ncaa_team}" pts=${pts} bsAbbr="${bsAbbr}"`);
