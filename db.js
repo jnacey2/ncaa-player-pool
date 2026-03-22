@@ -159,6 +159,14 @@ async function initSchema() {
     WHERE LOWER(name) = 'solomon ball' AND LOWER(ncaa_team) = 'uconn'
     AND (espn_name IS NULL OR espn_name != 'Solo Ball')
   `);
+  // Manual score fix: Alex Condon (Fla, Nielson) R1 = 13 pts
+  await pool.query(`
+    UPDATE player_round_scores SET pts = 13
+    WHERE round_num = 1
+    AND player_id IN (
+      SELECT id FROM players WHERE LOWER(name) = 'alex condon' AND LOWER(ncaa_team) = 'fla'
+    )
+  `);
   // ESPN name override: Nicholas Boyd (Wisc) → "Nick Boyd" (ESPN uses shortened first name)
   await pool.query(`
     UPDATE players SET espn_name = 'Nick Boyd'
