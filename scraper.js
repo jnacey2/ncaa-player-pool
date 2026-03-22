@@ -400,7 +400,7 @@ const ESPN_TO_CSV_ABBREV = {
   'ALA': 'Bama', 'BAMA': 'Bama',
   'BYU': 'BYU',
   'DUKE': 'Duke',
-  'FLA': 'Fla', 'UF': 'Fla',
+  'FLA': 'Fla', 'UF': 'Fla', 'FL': 'Fla', 'FLOR': 'Fla',
   'GONZ': 'Gonz',
   'HOU': 'Hou',
   'IAST': 'IaSt', 'IASU': 'IaSt',
