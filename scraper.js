@@ -361,6 +361,12 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
         // Team validation: reject if player's team doesn't match the box score section
         if (player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
 
+        // #region agent log — log Florida matches to debug Condon
+        if (csvTeam.toLowerCase() === 'fla') {
+          console.log(`[DEBUG-FLA] espn="${espnName}" → matched="${player.name}" team="${player.ncaa_team}" pts=${pts} bsAbbr="${bsAbbr}"`);
+        }
+        // #endregion
+
         // Only update if game is live or final (not pre-game)
         if (gameStatus === 'pre') continue;
 
