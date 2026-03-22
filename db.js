@@ -154,6 +154,11 @@ async function initSchema() {
     WHERE LOWER(name) = 'michael collins' AND LOWER(ncaa_team) = 'utst'
     AND (espn_name IS NULL OR espn_name != 'MJ Collins')
   `);
+  await pool.query(`
+    UPDATE players SET espn_name = 'Solo Ball'
+    WHERE LOWER(name) = 'solomon ball' AND LOWER(ncaa_team) = 'uconn'
+    AND (espn_name IS NULL OR espn_name != 'Solo Ball')
+  `);
   // ESPN name override: Nicholas Boyd (Wisc) → "Nick Boyd" (ESPN uses shortened first name)
   await pool.query(`
     UPDATE players SET espn_name = 'Nick Boyd'
