@@ -362,10 +362,16 @@ async function processBoxScore(boxScore, roundNum, gameStatus, playerIndex, espn
         if (player.ncaa_team.toLowerCase() !== csvTeam.toLowerCase()) continue;
 
         // Last-name validation: "Alex Lloyd" should not match "Alex Condon" just because
-        // they share a first name and are on the same team. Extract last word of each name
-        // and require they match (case-insensitive).
-        const espnLast = espnName.split(/\s+/).pop()?.toLowerCase() || '';
-        const playerLast = (player.espn_name || player.name).split(/\s+/).pop()?.toLowerCase() || '';
+        // they share a first name and are on the same team.
+        // Strip generational suffixes (Jr., Sr., II, III, IV) before comparing.
+        const SUFFIXES = new Set(['jr.', 'jr', 'sr.', 'sr', 'ii', 'iii', 'iv']);
+        function getLastName(fullName) {
+          const parts = fullName.trim().split(/\s+/).map(p => p.toLowerCase());
+          while (parts.length > 1 && SUFFIXES.has(parts[parts.length - 1])) parts.pop();
+          return parts[parts.length - 1] || '';
+        }
+        const espnLast = getLastName(espnName);
+        const playerLast = getLastName(player.espn_name || player.name);
         if (espnLast && playerLast && espnLast !== playerLast) continue;
 
         // #region agent log — log Florida matches to debug Condon

@@ -150,9 +150,9 @@ async function initSchema() {
 
   // ESPN name overrides for shortened/preferred names
   await pool.query(`
-    UPDATE players SET espn_name = 'MJ Collins'
+    UPDATE players SET espn_name = 'MJ Collins Jr.'
     WHERE LOWER(name) = 'michael collins' AND LOWER(ncaa_team) = 'utst'
-    AND (espn_name IS NULL OR espn_name != 'MJ Collins')
+    AND (espn_name IS NULL OR espn_name != 'MJ Collins Jr.')
   `);
   await pool.query(`
     UPDATE players SET espn_name = 'Solo Ball'
