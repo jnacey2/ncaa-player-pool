@@ -247,35 +247,9 @@ async function generateCommentary() {
 }
 
 function scheduleCommentary() {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.log('[commentary] No API key — commentary scheduler disabled');
-    return;
-  }
-
-  // Run every 2 hours, but only on tournament days
-  setInterval(() => {
-    if (isTournamentDay()) {
-      generateCommentary();
-    } else {
-      console.log('[commentary] Not a tournament day — skipping scheduled generation');
-    }
-  }, 2 * 60 * 60 * 1000);
-
-  console.log('[commentary] Scheduler started — will generate every 2h on game days');
-
-  // Generate once on startup if it's a tournament day and no recent commentary exists
-  if (isTournamentDay()) {
-    pool.query(`SELECT generated_at FROM commentary ORDER BY generated_at DESC LIMIT 1`)
-      .then(({ rows }) => {
-        const lastGenerated = rows[0]?.generated_at;
-        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-        if (!lastGenerated || new Date(lastGenerated) < twoHoursAgo) {
-          console.log('[commentary] Generating initial commentary on startup...');
-          generateCommentary();
-        }
-      })
-      .catch(() => generateCommentary());
-  }
+  // Auto-generation suspended — commentary only updates when a user clicks Regenerate.
+  // Re-enable the setInterval below when tournament games resume.
+  console.log('[commentary] Auto-generation suspended — use Regenerate button for manual updates');
 }
 
 module.exports = { generateCommentary, scheduleCommentary };
