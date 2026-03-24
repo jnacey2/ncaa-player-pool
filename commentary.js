@@ -4,13 +4,13 @@ const { pool } = require('./db');
 
 // All known 2026 NCAA tournament dates — only generate commentary on these days
 const TOURNAMENT_DATES = new Set([
-  '20260318', '20260319',
-  '20260320', '20260321',
-  '20260322', '20260323',
-  '20260327', '20260328',
-  '20260329', '20260330',
-  '20260405',
-  '20260407',
+  '20260318',             // First Four
+  '20260319', '20260320', // First Round
+  '20260321', '20260322', // Second Round
+  '20260326', '20260327', // Sweet 16
+  '20260328', '20260329', // Elite Eight
+  '20260405',             // Final Four
+  '20260407',             // Championship
 ]);
 
 function isTournamentDay() {

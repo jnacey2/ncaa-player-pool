@@ -60,8 +60,8 @@ const TOURNAMENT_DATES = [
   '20260318',             // First Four (2 games)
   '20260319', '20260320', // First Round
   '20260321', '20260322', // Second Round
-  '20260327', '20260328', // Sweet 16
-  '20260329', '20260330', // Elite Eight
+  '20260326', '20260327', // Sweet 16
+  '20260328', '20260329', // Elite Eight
   '20260405',             // Final Four
   '20260407',             // Championship
 ];
@@ -150,11 +150,11 @@ function espnStatusToGameStatus(espnStatus) {
 // Fallback: infer round from game date when ESPN text labels are ambiguous
 // First Four was March 18 only (2 games). First Round starts March 19.
 const DATE_ROUND_MAP = {
-  '2026-03-18': 0,                    // First Four (2 games, March 18 ET only)
+  '2026-03-18': 0,                    // First Four
   '2026-03-19': 1, '2026-03-20': 1,  // First Round
   '2026-03-21': 2, '2026-03-22': 2,  // Second Round
-  '2026-03-27': 3, '2026-03-28': 3,  // Sweet 16
-  '2026-03-29': 4, '2026-03-30': 4,  // Elite Eight
+  '2026-03-26': 3, '2026-03-27': 3,  // Sweet 16
+  '2026-03-28': 4, '2026-03-29': 4,  // Elite Eight
   '2026-04-05': 5,                    // Final Four
   '2026-04-07': 6,                    // Championship
 };
