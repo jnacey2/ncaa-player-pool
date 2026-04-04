@@ -763,8 +763,12 @@ async function schedulerLoop() {
 }
 
 function startScheduler() {
-  console.log('[scraper] Scheduler started — 30s when live, 5min otherwise');
+  console.log('[scraper] Scheduler started — 30s when live, 60s otherwise');
   schedulerLoop();
+  // Log heartbeat every 5 minutes so Render logs confirm the process is alive
+  setInterval(() => {
+    console.log('[scraper] Heartbeat — still running at', new Date().toISOString());
+  }, 5 * 60 * 1000);
 }
 
 module.exports = { scrape, startScheduler };
