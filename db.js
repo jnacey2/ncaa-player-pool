@@ -194,7 +194,7 @@ async function initSchema() {
     UPDATE games SET round_num = 2 WHERE game_date IN ('2026-03-21'::date,'2026-03-22'::date) AND round_num != 2;
     UPDATE games SET round_num = 3 WHERE game_date IN ('2026-03-26'::date,'2026-03-27'::date) AND round_num != 3;
     UPDATE games SET round_num = 4 WHERE game_date IN ('2026-03-28'::date,'2026-03-29'::date) AND round_num != 4;
-    UPDATE games SET round_num = 5 WHERE game_date = '2026-04-05'::date AND round_num != 5;
+    UPDATE games SET round_num = 5 WHERE game_date IN ('2026-04-04'::date,'2026-04-05'::date) AND round_num != 5;
     UPDATE games SET round_num = 6 WHERE game_date = '2026-04-07'::date AND round_num != 6;
   `);
 
