@@ -63,7 +63,7 @@ const TOURNAMENT_DATES = [
   '20260326', '20260327', // Sweet 16
   '20260328', '20260329', // Elite Eight
   '20260404',             // Final Four
-  '20260407',             // Championship
+  '20260406',             // Championship
 ];
 
 // Fetch tournament games for a single date
@@ -156,7 +156,7 @@ const DATE_ROUND_MAP = {
   '2026-03-26': 3, '2026-03-27': 3,  // Sweet 16
   '2026-03-28': 4, '2026-03-29': 4,  // Elite Eight
   '2026-04-04': 5,                    // Final Four
-  '2026-04-07': 6,                    // Championship
+  '2026-04-06': 6,                    // Championship
 };
 
 // Parse round number from ESPN event data.

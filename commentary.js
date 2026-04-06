@@ -10,7 +10,7 @@ const TOURNAMENT_DATES = new Set([
   '20260326', '20260327', // Sweet 16
   '20260328', '20260329', // Elite Eight
   '20260404',             // Final Four
-  '20260407',             // Championship
+  '20260406',             // Championship
 ]);
 
 function isTournamentDay() {
